@@ -1,24 +1,35 @@
-# Delivery roadmap
+# Roadmap — Meta hackathon first, research platform later
 
-## P0 — Foundation + first real cell simulation
-ExperimentSpec, capability registry, secure planning API, run store, worker orchestration, PhysiCell adapter, frame parser, minimal 3D playback, scientific validity tests, reproducibility export.
+## Immediate competition milestone: Nov 4 2026, 9 PM Bogotá
+**Track recommendation:** Indie / Push the Frontier pending confirmed application.
 
-**Gate:** an AI-planned two-cell interaction run yields genuine PhysiCell-produced trajectories; viewable in browser; full rerun reproducible with a fixed seed, within expected numerical tolerances; failures report explicitly.
+### Day 1-2: can run science
+#1 #3 #4 #8 #9. Choose pinned PhysiCell release, create exact two-agent model; make real solver execute and emit versioned trajectory. Define golden benchmark before UI polish.
 
-## P1 — Useful laboratory
-Comparative experiments, metric panels, parameter sweeps, reproducible workspace, saved prompts, share/export, polished UX, observability and system hardening.
+### Day 3-4: AI plans real experiment
+#5 and hackathon Meta Model API adapter issue. Create deterministic validated tools with explicit units, guardrails (#6), error and unsupported behavior, no model-generated executable code.
 
-**Gate:** nontechnical users can compare two scientifically valid scenarios and inspect model assumptions without coding.
+### Day 5-6: visualize and compare
+#7 #10 #11 #12 #13 and thin comparison from #17. Runtime is source of every position/time series. Support before/after parameter edit and rerun.
 
-## P2 — Multiscale pathways
-Morpheus for declarative cellular spatial models, SOFA for deformable-cell mechanics, custom scientific reference datasets.
+### Day 7: quality gate
+#14 #15 #16 #22. Golden benchmark, reproducibility export, fast PR CI only, smoke run under explicit manual command, provider failure handling.
 
-**Gate:** every adapter has independently validated fixtures and limitations.
+### Day 8: pitch and demo
+Hackathon deliverable issue: README, screenshots of **actual running app**, <3 min draft video (duration is editorial choice, not confirmed rule), deployed stable demo, validation table and limitations.
 
-## P3 — Molecular simulations
-OpenMM atomistic tasks, molecular structure viewer and PDB provenance, compute quotas and GPU scheduling.
+### Day 9: submission readiness
+Freeze features, test from new account/device, fallback recorded demo, check participant portal/rules, submit well before cutoff. Do not claim submission unless confirmed.
 
-**Gate:** no suggestion that molecular and whole-cell physical models are interchangeable.
+## Product backlog after competition
+#2 full persistence, #18 sweeps, #19 broad UX, #20 tenant RBAC, #23 interpretations, #24 Morpheus, #25 SOFA FEM, #26 OpenMM and remaining P1 enhancements.
 
-## Delivery policy
-One focused CI workflow for lint, unit, schema contract and minimal integration checks; nightly/heavy scientific benchmarks only on demand. No CI matrix spam. Never deploy stub or synthetic data as real experiment output.
+## Nonnegotiable definition of done
+- AI actively uses a Meta model; requested capabilities measured with evaluation suite.
+- The numerical solver really computes the frames; no synthetic output masquerading as solver result.
+- Human can inspect exact parameters, units, scientific assumptions, provenance, and engine limitations.
+- The experiment is repeatable within documented numerical tolerance.
+- No clinical claim; no code execution from LLM prompt.
+- Deploy reproducibly; no heavy noisy CI scheduled on every push.
+
+See docs/HACKATHON_2026.md, docs/ARCHITECTURE.md, docs/ISSUES.md.
