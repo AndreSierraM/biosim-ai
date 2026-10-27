@@ -1,16 +1,24 @@
-# Delivery dependencies and focus
-Refer to docs/HACKATHON_2026.md and docs/ROADMAP.md for deadline and competition acceptance gates.
+# Verified issue execution plan — updated 2026-10-26
 
-## Hackathon must execute
-#1 -> #3 -> #4 -> #5 -> Meta API integration issue
-#1 -> #8 -> #9 -> #10 -> #11
-#5 + #11 -> #12 -> #13 -> #15
-#7 supports #8 and #15; #6 security is mandatory cross-cutting.
-#14 reproducibility; #16 lightweight CI; #22 benchmarks.
-Hackathon demo/submission issue is mandatory before release.
+There are **31 open issues** (#1–#20, #22–#32). #21 was closed as duplicate of #20. Every original issue now has its own hackathon execution supplement containing file surfaces, dependencies, work, acceptance tests and exclusions.
 
-## Later
-#2 full persistence, #17 comparisons beyond 2-arm demo, #18 sweeps, #19 polish breadth, #20 RBAC, #23 advanced analysis, #24 Morpheus, #25 SOFA, #26 OpenMM, #27 observability, #28 documentation, #29 catalog.
+## First-class hackathon path
+- Foundation: #1 -> #3 -> #4.
+- Scientific core: #8 -> #9 -> #10 -> #11 -> #13.
+- Meta AI: #30 (actual API) + #5 (typed planner) + #6 (guardrails) -> #12 (conversation UX).
+- Runtime orchestration: #7; reproducibility: #14; smoke: #15; benchmarks: #22 and #32.
+- Comparison: thin targeted implementation from #17.
+- Delivery: #31 recorded/live demo, portal/eligibility verification and evidence.
+- Cross-cutting: #16 lightweight CI, #28 runbook; narrow #19 visual polish.
 
-## Quality gates
-Verified genuine solver frames, Meta API invocation proof, seeded rerun, units and engine limitations, functional live demo and recorded backup; user approval and official portal submission are manual.
+## Defer explicitly
+- #2 complete persistent tenancy model
+- #18 full parameter sweep; #20 full auth/tenant policies; #23 advanced narrative analysis; #27 full observability
+- #24 Morpheus; #25 SOFA; #26 OpenMM
+- #29 broad scenario catalog and advanced #19 experience
+These issues remain open as an honest post-competition backlog.
+
+## Per-issue success proof
+Linked focused PR with implementation code, type/contracts, unit/integration tests, error conditions, scientific provenance where relevant, limitation disclosure. Never close science issues with a UI-only animation. The contest is only ready when #15 + #30 + #32 + #31 can be demonstrated with real artifacts.
+
+See docs/ROADMAP.md, docs/DEMO_SPEC.md and AGENTS.md. No portal submission is implied.

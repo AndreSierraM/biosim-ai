@@ -1,45 +1,43 @@
 # BioSim AI
 
-**Natural language to reproducible biological simulation.**
+**From biological hypothesis to reproducible 3D cell simulation, powered by Meta AI.**
 
-BioSim AI is an open-source, AI-native 3D computational biology workbench. Users describe a biological experiment; an agent builds a typed experiment specification, validates scientific and compute constraints, schedules the appropriate simulation engine, and renders real computed trajectories and measurements.
+BioSim AI is an open-source AI-native scientific workbench: describe a cellular experiment in natural language, review its validated parameters, run a real numerical solver, inspect 3D trajectories and compare measured outcomes.
 
-> Current status: architectural foundation and development backlog. No production-grade simulation engine is integrated yet. Never label animations or synthetic fixtures as scientific findings.
+> **Implementation status (2026-10-26): planning, specifications and GitHub issues are published on main. The React app, Meta Model API adapter and PhysiCell execution pipeline have NOT been implemented or verified yet.** Do not claim a working prototype, benchmark or submission before actual evidence exists.
 
-## Product principles
+## Meta hackathon focus
 
-1. **Physics before pixels:** scientific outputs always originate from numerical solvers.
-2. **No fabricated findings:** AI can explain results but cannot create experimental result arrays.
-3. **Evidence and reproducibility:** every run records model, seed, units, assumptions, solver version, code hash and dataset provenance.
-4. **AI with guardrails:** typed tools and reviewed adapter manifests; never execute arbitrary LLM-authored shell/Python/C++.
-5. **Progressive scientific fidelity:** start with cell-scale interactions; add subcellular and molecular engines as separate adapters.
-6. **Honest uncertainty:** show model validity, limitations, calibration and confidence indicators.
-7. **No medical diagnostic use.**
+Proposed theme **Push the Frontier**, proposed category **Indie Developer** (subject to registration eligibility). The current competition goal is a single credible prompt-to-PhysiCell-to-3D-to-explanation loop.
 
-## First vertical slice
+**Hero experiment:** "What changes when the adhesion between two approaching cells doubles?" Meta AI proposes a typed experiment, a human reviews assumptions, PhysiCell generates the actual cellular trajectories, and a 3D interface shows before/after and distance/contact-time graphs. The assistant explains only measured results and their limitations.
 
-'Run two cells approaching each other, compare their resulting trajectories with different adhesion strengths' -> generate validated ExperimentSpec -> enqueue PhysiCell adapter run -> parse native results -> show time-indexed 3D playback, charts and physical assumptions -> export a reproducibility bundle.
+- [Hackathon audit and eligibility](docs/HACKATHON_2026.md)
+- [Competition-first development roadmap](docs/ROADMAP.md)
+- [Task dependencies and GitHub issues](docs/ISSUES.md)
+- [Agent implementation rules](AGENTS.md)
+- [Demo UX, API and observables](docs/DEMO_SPEC.md)
+- [Meta API integration contract](docs/META_AI_ADAPTER.md)
+- [Submission package checklist](docs/SUBMISSION.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Scientific engine research](docs/RESEARCH.md)
+- [Security boundaries](docs/SECURITY.md)
+- [GitHub issue tracker](https://github.com/AndreSierraM/biosim-ai/issues)
 
-Membrane deformation at mesh resolution is **not supported** by a simple agent-based cell model: SOFA integration belongs in a separate validated capability.
+## Architecture target (not yet implemented)
 
-## Architecture
+- React + TypeScript + React Three Fiber for chat, input validation and trajectory visualization.
+- FastAPI + Pydantic with a versioned ExperimentSpec and engine capability manifest.
+- Meta Model API for experiment planning and explanation, subject to verified account/model access.
+- Isolated PhysiCell worker producing authentic cell-center trajectories and numerical outputs.
+- Hashes, seed, units, solver version, model assumptions and original output in each reproducibility bundle.
 
-- `apps/web`: React + TypeScript + Vite + React Three Fiber, TanStack Query, lightweight charts.
-- `services/api`: FastAPI REST, Pydantic schemas and OpenAPI.
-- `services/worker`: isolated worker and simulation adapters; heavy solver images are separate.
-- `packages/experiment-schema`: canonical JSON Schema, units and capability metadata.
-- `packages/engine-physicell`: first scientific engine adapter (planned).
-- `docs`: architecture, validation, threat model, ADRs and roadmap.
-- PostgreSQL: users, experiments, runs, provenance; Redis for job queue; object store for trajectory artifacts.
+Morpheus, SOFA and OpenMM are independent longer-term adapters, **not required for the hackathon**. An agent-based spherical cell model must not be presented as a deformable-membrane finite element simulation.
 
-## Getting started
+## Development approach
 
-See `docs/ARCHITECTURE.md` and `docs/ROADMAP.md`. Source scaffolding is intentionally minimal until the first end-to-end scientific test is established. See tracked GitHub issues for implementation and acceptance criteria.
-
-## Relevant software
-
-[PhysiCell](https://github.com/MathCancer/PhysiCell) · [Morpheus](https://morpheus.gitlab.io/) · [SOFA](https://www.sofa-framework.org/) · [OpenMM](https://openmm.org/) · [Simularium](https://github.com/simularium/simularium-viewer)
+Work issues in dependency order, only close an issue with reproducible evidence and tests. No invented simulation results, permanent mocks in user-facing screens or unreviewed LLM-generated executable code. Keep CI lightweight to minimize notification noise. See [AGENTS.md](AGENTS.md).
 
 ## License
 
-Apache-2.0 for original project code. Dependencies remain governed by their own licenses; check LGPL/GPL components and scientific asset/data terms before distribution.
+The original repository uses Apache-2.0. Imported solvers, datasets, pretrained models and models' outputs retain their respective license and use restrictions.
