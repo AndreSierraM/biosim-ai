@@ -1,0 +1,19 @@
+{
+  "seed": 7,
+  "cell_radius_um": 10.0,
+  "dt_min": 0.01,
+  "duration_min": 20.0,
+  "frame_every": 10,
+  "approach_force": 60.0,
+  "approach_until_min": 1.0,
+  "separate_force": 8.0,
+  "separation_range_um": 150.0,
+  "separation_width_um": 10.0,
+  "hertz_k": 12.0,
+  "adhesion": 6.0,
+  "adhesion_shell_um": 1.0,
+  "diffusion_um2_per_min": 0.02,
+  "gamma": 1.0,
+  "initial_gap_um": 36.0,
+  "initial_positions": null
+}

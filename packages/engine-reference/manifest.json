@@ -1,0 +1,15 @@
+{
+  "engine_id": "reference-2cell",
+  "engine_version": "0.2.0",
+  "display_name": "Reference two-cell adhesion model (development scaffold)",
+  "fidelity": "rigid-sphere overdamped dynamics; qualitative behavior only",
+  "integrator": "heun-drift+euler-maruyama-noise",
+  "geometry": {"dimensionality": 3, "length_unit": "um", "time_unit": "min"},
+  "observables": ["positions", "contact_events", "time_series"],
+  "limits": [
+    "NOT PhysiCell: simplified in-house model for plumbing and visualization.",
+    "No membrane deformation, no proliferation, no diffusion fields.",
+    "Hertz-like core and shell adhesion are illustrative, not calibrated biology.",
+    "Never present these outputs as validated scientific findings."
+  ]
+}

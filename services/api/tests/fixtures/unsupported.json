@@ -1,0 +1,1 @@
+{"kind": "unsupported", "reason": "No available engine resolves atomistic detail: PhysiCell models cells as agents (micrometer scale), not atoms. A molecular dynamics engine (OpenMM) is out of scope for this demo."}

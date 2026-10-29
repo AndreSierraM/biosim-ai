@@ -13,17 +13,18 @@ Updated 2026-10-26. Source of truth for event: https://dev.meta.ai/events/global
 ## Winning thesis
 BioSim AI: **From question to reproducible cell experiment**. Natural-language hypothesis -> Meta-powered model plan -> validated scientific parameters -> actual PhysiCell run -> interactive 3D trajectories + charts -> grounded explanation and reproducibility bundle. AI accelerates scientist workflows but never simulates physical outputs itself.
 
-## Demo scenario: cell adhesion
-User: 'Investigate how doubling adhesion affects the contact and separation of two cells.' 
-1. AI identifies intended biological agents, physical assumptions, needed missing parameters and control/variant setup.
-2. Typed ExperimentSpec with two arms, same initial conditions, explicit units and seed.
-3. PhysiCell solver computes positions at each simulation time. No membrane deformation claims for agent spheres.
-4. UI shows side-by-side 3D trajectories and distance-over-time/contact-duration chart, attributed to actual outputs.
+## Demo scenario: drug dose-response on a tumor spheroid
+User: 'How does drug dose affect spheroid survival?'
+1. AI identifies the assay, control/treated setup, dose parameter with units, and what PhysiCell can/cannot do.
+2. Typed ExperimentSpec with two arms (control 0 uM, treated 10 uM), same seed, explicit units.
+3. PhysiCell computes N-cell trajectories: proliferation, oxygen/necrosis, drug gradient, Hill apoptosis.
+4. UI shows side-by-side 3D spheroids plus a dose-sweep curve (0, 0.3, 1, 3, 10 uM) with assay-scale IC50.
 5. User asks 'What changed and how confident are you?' Meta explains comparison *only using measured outputs*, says what model cannot infer and cites run ids.
 
 ## Scope freeze
 **Must have:** Meta Model API adapter (real calls and logged model version), strict tools/schema, working solver adapter, reproducible experiment, real trajectory 3D, parameter edit/rerun, meaningful metrics, demo video, short pitch, deployable instructions.
-**Nice-to-have:** multiple cell agents, parameter sweeps, sharing, curated scientific benchmark.
+**Done (was nice-to-have):** N-cell spheroid agents, dose-sweep runner with dose-response curve.
+**Nice-to-have:** sharing, curated scientific benchmark, parameter calibration loop.
 **Out of competition scope:** SOFA/FEM membrane deformation, OpenMM, Morpheus, complex RBAC, full research platform, generated bio images, clinical decisions.
 
 ## Delivery checklist
@@ -43,7 +44,7 @@ User: 'Investigate how doubling adhesion affects the contact and separation of t
 Impact: researchers and students reduce time from textual hypothesis to configured reproducible experiment. Benchmark task completion with/without assistant (do not claim improvement without measured data).
 Meta usage: Muse Spark does semantic modeling, constrained planning, explanation; show real request/response metadata and validation statistics, no secret tokens.
 Technical: numerical solver artifacts, schema guardrails, resource-isolated worker, provenance, repeatability.
-Demo: compelling two-cell before/after comparison, inspectable observable plot, clear limitations, fallback recording.
+Demo: compelling control-vs-treated spheroid comparison, dose-response curve with IC50, clear limitations, fallback recording.
 
 ## Sources
 - https://dev.meta.ai/events/global-hackathon (official event page)

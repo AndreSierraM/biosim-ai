@@ -38,6 +38,28 @@ Morpheus, SOFA and OpenMM are independent longer-term adapters, **not required f
 
 Work issues in dependency order, only close an issue with reproducible evidence and tests. No invented simulation results, permanent mocks in user-facing screens or unreviewed LLM-generated executable code. Keep CI lightweight to minimize notification noise. See [AGENTS.md](AGENTS.md).
 
+```bash
+# 1. compute reference trajectories (stdlib Python, no install)
+python3 packages/engine-reference/cli.py \
+  --params packages/engine-reference/params/baseline.json \
+  --out artifacts/baseline/trajectory.json
+python3 packages/engine-reference/tests/test_determinism.py
+
+# 2. API (health, spec validation, runs, planning)
+cd services/api
+.venv/bin/python -m uvicorn app.main:app --port 8123
+
+# 3. web viewer (needs samples copied once, see apps/web/README.md)
+cd apps/web && npm install && npm run dev   # -> http://localhost:5173
+```
+
+See `docs/ARCHITECTURE.md` and `docs/ROADMAP.md`. Scaffolding grows with
+each vertical slice; see tracked GitHub issues for acceptance criteria.
+
+## Relevant software
+
+[PhysiCell](https://github.com/MathCancer/PhysiCell) · [Morpheus](https://morpheus.gitlab.io/) · [SOFA](https://www.sofa-framework.org/) · [OpenMM](https://openmm.org/) · [Simularium](https://github.com/simularium/simularium-viewer)
+
 ## License
 
 The original repository uses Apache-2.0. Imported solvers, datasets, pretrained models and models' outputs retain their respective license and use restrictions.

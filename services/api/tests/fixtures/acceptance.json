@@ -1,0 +1,5 @@
+{
+  "oxygen availability": "{\"kind\": \"spheroid_oxygen_compare\", \"engine\": \"physicell\", \"oxygen_high\": 38.0, \"oxygen_low\": 12.0}",
+  "atom-level": "{\"kind\": \"unsupported\", \"reason\": \"No available engine resolves atomistic detail: PhysiCell models cells as agents (micrometer scale), not atoms.\"}",
+  "drug dose": "{\"kind\": \"spheroid_drug_compare\", \"engine\": \"physicell\", \"drug_dose\": 10.0}"
+}

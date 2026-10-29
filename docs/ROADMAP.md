@@ -4,7 +4,7 @@
 **Track recommendation:** Indie / Push the Frontier pending confirmed application.
 
 ### Day 1-2: can run science
-#1 #3 #4 #8 #9. Choose pinned PhysiCell release, create exact two-agent model; make real solver execute and emit versioned trajectory. Define golden benchmark before UI polish.
+#1 #3 #4 #8 #9. Choose pinned PhysiCell release, create tumor spheroid + drug assay; make real solver execute and emit versioned trajectory. Define golden benchmark before UI polish.
 
 ### Day 3-4: AI plans real experiment
 #5 and hackathon Meta Model API adapter issue. Create deterministic validated tools with explicit units, guardrails (#6), error and unsupported behavior, no model-generated executable code.

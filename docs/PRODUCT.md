@@ -24,9 +24,14 @@
 An AI scientist interface constrained by a machine-readable registry of scientific simulation capabilities, with automatic reproducibility packages and model limitations attached to every result.
 
 ## Example prompts
-- 'Compare how adhesion changes trajectories of two spherical cells after contact.'
-- 'Run 100 cells competing for a limited diffusing nutrient under two initial concentrations.'
-- 'Show an intracellular molecule diffusion experiment and the concentration over time.'
+- 'How does oxygen availability affect tumor spheroid growth?' (control vs low-oxygen arms)
+- 'How does drug dose affect spheroid survival?' (control vs treated arms, then a dose sweep)
+- 'Sweep drug doses 0, 0.3, 1, 3, 10 uM and show the dose-response curve with IC50.'
+
+## Flagship assay (hackathon slice)
+Tumor spheroid + cytotoxic drug dose-response on PhysiCell 1.14.2: sustained
+boundary dose, diffusion/uptake gradient, Hill apoptosis. Assay-scale readouts
+(final live cells, dose-response curve, log-linear IC50) — explicitly not clinical.
 
 ## AI interaction principles
 Plan-before-run, editable parameters, provenance badges, user control, meaningful errors, visible progress, no demo data masquerading as simulation.
