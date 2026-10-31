@@ -773,7 +773,7 @@ export default function App() {
                   <thead>
                     <tr>
                       <th>id</th>
-                      <th>brazo</th>
+                      <th>condición</th>
                       <th>estado</th>
                       <th>vivas</th>
                       <th>muertas</th>

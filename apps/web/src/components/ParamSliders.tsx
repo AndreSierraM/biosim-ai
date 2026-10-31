@@ -51,7 +51,7 @@ export default function ParamSliders({ values, onChange, disabled, locks }: Prop
     <section className="params-card" aria-label="parámetros del ensayo">
       <div className="params-head">
         <h2>Parámetros</h2>
-        <p>Se aplican a ambos brazos en el próximo run. La variable del experimento la define el plan.</p>
+        <p>Se aplican a ambas condiciones en la próxima simulación. La variable del experimento la define el plan.</p>
       </div>
       <div className="params-grid">
         {SLIDERS.map((s) => {
