@@ -191,7 +191,7 @@ export default function App() {
     setSelDose(null);
     setSelectedArm(null);
     setPlannerBackend(null);
-    setBusy("Planning…");
+    setBusy("Planificando…");
     try {
       const p = await api.plan(prompt);
       if (genRef.current !== gen) return;
@@ -263,12 +263,12 @@ export default function App() {
       const job = await api.submit(engine, values, seed, idemKey(gen, engine, values, seed));
       if (genRef.current !== gen) return;
       setRuns((prev) => ({ ...prev, [armName]: { job, traj: prev[armName]?.traj ?? null } }));
-      logHistory({ id: job.id, label: `brazo ${armName}`, job });
+      logHistory({ id: job.id, label: `condición ${armName}`, job });
       const final = await pollRun(job.id, { signal });
       if (genRef.current !== gen) return;
-      logHistory({ id: final.id, label: `brazo ${armName}`, job: final });
+      logHistory({ id: final.id, label: `condición ${armName}`, job: final });
       if (final.state !== "completed") {
-        throw new Error(`run ${final.id} ${final.state}: ${final.error ?? ""}`);
+        throw new Error(`simulación ${final.id} ${final.state}: ${final.error ?? ""}`);
       }
       const traj = await api.trajectory(final.id, trajStride());
       if (genRef.current !== gen) return;
@@ -364,12 +364,12 @@ export default function App() {
     abortPolls();
     setError(null);
     setSweepError(null);
-    setBusy("Running both arms…");
+    setBusy("Ejecutando ambas condiciones…");
     try {
       await Promise.all(
         plan.arms.map((arm) => {
           const spec = armValues(arm.name);
-          if (!spec) throw new Error(`arm ${arm.name} missing from plan`);
+          if (!spec) throw new Error(`falta la condición ${arm.name} en el plan`);
           return runArm(arm.name, spec.engine, spec.values, spec.seed, gen);
         }),
       );
@@ -389,7 +389,7 @@ export default function App() {
     abortPolls();
     setError(null);
     setSweepError(null);
-    setBusy(`Rerunning ${armName}…`);
+    setBusy(`Repitiendo ${armName}…`);
     try {
       await runArm(armName, spec.engine, spec.values, spec.seed, gen);
     } catch (e) {
@@ -418,7 +418,7 @@ export default function App() {
       logHistory({ id: final.id, label: `dosis ${dose} µM`, job: final });
       if (final.state !== "completed") {
         setSweep((prev) => prev.map((s) => (s.job.id === final.id ? { dose, job: final, traj: null } : s)));
-        throw new Error(`dose ${dose}: run ${final.id} ${final.state}: ${final.error ?? ""}`);
+        throw new Error(`dosis ${dose}: simulación ${final.id} ${final.state}: ${final.error ?? ""}`);
       }
       const traj = await api.trajectory(final.id, trajStride());
       if (genRef.current !== gen) return;
@@ -444,13 +444,13 @@ export default function App() {
         .map(Number),
     )].sort((a, b) => a - b);
     if (doses.length === 0 || doses.some((d) => !Number.isFinite(d) || d < 0 || d > 100)) {
-      const msg = "dose ladder must be numbers between 0 and 100 µM, e.g. 0, 0.3, 1, 3, 10";
+      const msg = "las dosis deben ser números entre 0 y 100 µM, p. ej. 0, 0.3, 1, 3, 10";
       setError(msg);
       setSweepError(msg);
       return;
     }
     if (doses.length > 8) {
-      const msg = "at most 8 doses per sweep";
+      const msg = "máximo 8 dosis por barrido";
       setError(msg);
       setSweepError(msg);
       return;
@@ -461,7 +461,7 @@ export default function App() {
     setSweepError(null);
     setSweep([]);
     setSelDose(doses[0]);
-    setBusy(`Running dose sweep (${doses.length} runs)…`);
+    setBusy(`Ejecutando barrido de dosis (${doses.length} simulaciones)…`);
     const queue = [...doses];
     const failures: string[] = [];
     const worker = async () => {
@@ -513,8 +513,8 @@ export default function App() {
   const hasCompletedRun =
     trajs.length > 0 || sweep.some((s) => s.traj !== null);
   const showPreview = !hasCompletedRun;
-  const planning = busy.startsWith("Planning");
-  const running = busy.startsWith("Running") || busy.startsWith("Rerunning");
+  const planning = busy.startsWith("Planificando");
+  const running = busy.startsWith("Ejecutando") || busy.startsWith("Repitiendo");
   /** The copilot panel only earns its space once there is a plan to show. */
   const showCopilot = planning || plan !== null;
   const physicell = engines?.find((e) => e.engine_id === "physicell");
@@ -591,7 +591,7 @@ export default function App() {
               <div className="stage-main">
                 <section className="viewer-card" aria-label="simulación 3D">
                   {armNames.length > 1 && (
-                    <div className="arm-tabs" role="tablist" aria-label="brazos">
+                    <div className="arm-tabs" role="tablist" aria-label="condiciones">
                       {armNames.map((name, i) => (
                         <button
                           key={name}
@@ -681,13 +681,13 @@ export default function App() {
                         )}
                       </div>
                       <button type="button" className="primary-btn" onClick={doSweep} disabled={!!busy}>
-                        Run sweep
+                        Barrido
                       </button>
                     </div>
                     {sweep.length === 0 && (
                       <p className="hint">
                         Escribe dosis separadas por comas (µM, máx. 8) y pulsa{" "}
-                        <strong>Run sweep</strong> para ver la curva dosis-respuesta e IC50.
+                        <strong>Barrido</strong> para ver la curva dosis-respuesta e IC50.
                       </p>
                     )}
                     {sweep.length > 0 && (
@@ -762,7 +762,7 @@ export default function App() {
         {view === "history" && (
           <section className="page-card" aria-label="mis experimentos">
             <h2>Mis experimentos</h2>
-            <p className="page-sub">Tus runs de este navegador (se conservan al recargar).</p>
+            <p className="page-sub">Tus simulaciones de este navegador (se conservan al recargar).</p>
             {historyRows.length === 0 ? (
               <p className="hint">
                 Aún no hay runs. <button type="button" className="link-btn" onClick={() => setView("experiment")}>Experimenta</button> para crear el primero.
@@ -772,7 +772,7 @@ export default function App() {
                 <table>
                   <thead>
                     <tr>
-                      <th>run</th>
+                      <th>id</th>
                       <th>brazo</th>
                       <th>estado</th>
                       <th>vivas</th>

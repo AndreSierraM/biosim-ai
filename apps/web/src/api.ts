@@ -94,7 +94,7 @@ export async function pollRun(
       return job;
     }
     if (Date.now() - start > timeoutMs) {
-      throw new Error(`run ${id} timed out in ${job.state}`);
+      throw new Error(`la simulación ${id} tardó demasiado (estado ${job.state})`);
     }
     await sleep(delay, signal);
     delay = Math.min(5000, delay * 2);

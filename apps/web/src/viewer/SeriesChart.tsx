@@ -46,8 +46,8 @@ export default function SeriesChart({ data, frame, onSeek, yMax }: Props) {
   const cur = series[safeFrame] ?? { t: 0, live: 0, dead: 0 };
   const valueText =
     n === 0
-      ? "no frames"
-      : `frame ${safeFrame + 1} of ${n}, t ${fmtT(cur.t)}${useDays ? "" : " min"}, ${cur.live} live, ${cur.dead} dead`;
+      ? "sin fotogramas"
+      : `fotograma ${safeFrame + 1} de ${n}, t ${fmtT(cur.t)}${useDays ? "" : " min"}, ${cur.live} vivas, ${cur.dead} muertas`;
 
   return (
     <svg
@@ -55,7 +55,7 @@ export default function SeriesChart({ data, frame, onSeek, yMax }: Props) {
       viewBox={`0 0 ${W} ${H}`}
       role="slider"
       tabIndex={0}
-      aria-label="living and dead cell counts over time (click or press arrows, Enter, Space to seek)"
+      aria-label="células vivas y muertas en el tiempo (clic o flechas, Enter, Espacio para moverse)"
       aria-valuemin={0}
       aria-valuemax={Math.max(0, n - 1)}
       aria-valuenow={safeFrame}

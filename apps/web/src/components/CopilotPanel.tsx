@@ -171,7 +171,7 @@ export default function CopilotPanel({
                 </div>
               ) : (
                 <p className="condition-pending" role="status">
-                  {run ? `run ${run.job.state}…` : "pendiente de run"}
+                  {run ? `simulación ${run.job.state}…` : "pendiente de simulación"}
                 </p>
               )}
               <div className="condition-actions">
