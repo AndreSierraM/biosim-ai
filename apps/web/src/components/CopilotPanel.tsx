@@ -1,3 +1,6 @@
+import { useLocale } from "../i18n";
+import type { Locale } from "../i18n";
+import { tFor } from "../i18n";
 import type { Job, Plan, TrajectoryFile } from "../types";
 import { fmtT50 } from "../conclusion";
 
@@ -23,23 +26,22 @@ function fmtUnit(unit: string): string {
   return unit === "uM" ? "µM" : unit;
 }
 
-const NAME_OF: Record<string, string> = {
-  oxygen: "oxígeno",
-  drug_dose: "medicamento",
-  drug_ec50: "EC50",
-  drug_kill_max: "mortalidad máx.",
-  drug_uptake: "captación",
-  max_time_min: "duración",
-  report_interval_min: "intervalo",
-  initial_cells: "tamaño inicial",
-};
+function nameOf(locale: Locale, key: string): string {
+  const namespaced = `sub.${key}`;
+  const hit = tFor(locale, namespaced as never);
+  return hit === namespaced ? key.replace(/_/g, " ") : hit;
+}
 
 /** Short honest subtitle from the arm's planned parameters. */
-export function armSubtitle(plan: Plan | null, armName: string): string {
+export function armSubtitle(
+  plan: Plan | null,
+  armName: string,
+  locale: Locale = "es",
+): string {
   const arm = plan?.arms.find((a) => a.name === armName);
   if (!arm) return armName;
   const bits = Object.entries(arm.spec.parameters).map(
-    ([k, q]) => `${NAME_OF[k] ?? k.replace(/_/g, " ")} ${q.value} ${fmtUnit(q.unit)}`,
+    ([k, q]) => `${nameOf(locale, k)} ${q.value} ${fmtUnit(q.unit)}`,
   );
   return bits.length > 0 ? bits.join(" · ") : armName;
 }
@@ -78,6 +80,8 @@ export default function CopilotPanel({
   onRerun,
   onExport,
 }: Props) {
+  const { t, locale } = useLocale();
+  const num = (v: number) => v.toLocaleString(locale === "es" ? "es-ES" : "en-US");
   const arms = plan?.validated ? plan.arms : [];
   const trajs = arms
     .map((a) => runs[a.name]?.traj)
@@ -99,12 +103,9 @@ export default function CopilotPanel({
   const maxT50 = Math.max(1, ...t50vals.filter((v): v is number => v !== null));
 
   const steps = [
-    { state: step1, label: "Entendí tu pregunta" },
-    { state: step2, label: "Diseñé el experimento" },
-    {
-      state: step3,
-      label: allDone ? "Simulación completa" : "Ejecutando simulación…",
-    },
+    { state: step1, label: t("co.step1") },
+    { state: step2, label: t("co.step2") },
+    { state: step3, label: allDone ? t("co.step3") : t("co.step3run") },
   ];
 
   return (
@@ -113,10 +114,10 @@ export default function CopilotPanel({
         <span className="copilot-spark" aria-hidden="true">
           ✦
         </span>
-        BioSim AI
+        {t("co.title")}
       </h2>
 
-      <ol className="checklist" aria-label="progreso">
+      <ol className="checklist" aria-label={t("co.progress")}>
         {steps.map((s) => (
           <li key={s.label} className={`check is-${s.state}`}>
             <span className="check-dot" aria-hidden="true">
@@ -129,13 +130,13 @@ export default function CopilotPanel({
 
       <h3 className="results-title">
         <span className={trajs.length > 0 ? "results-dot is-on" : "results-dot"} aria-hidden="true" />
-        Resultados listos
+        {t("co.results")}
       </h3>
       {plan !== null || trajs.length > 0 ? (
         <p className="results-sub">
           {trajs.length > 0
-            ? "Aquí puedes ver lo que pasó y comparar las condiciones."
-            : "Cuando termine el run verás aquí la comparativa."}
+            ? t("co.wait")
+            : t("co.planCta")}
         </p>
       ) : null}
 
@@ -146,7 +147,7 @@ export default function CopilotPanel({
           onClick={onRunAll}
           disabled={busy}
         >
-          {anyRunning ? "Ejecutando…" : trajs.length > 0 ? "Volver a ejecutar" : "Ejecutar simulación"}
+          {anyRunning ? t("co.step3run") : trajs.length > 0 ? t("plan.rerunAll") : t("plan.runAll")}
         </button>
       )}
 
@@ -161,57 +162,57 @@ export default function CopilotPanel({
             <article
               key={arm.name}
               className={i === 0 ? "condition is-a" : "condition is-b"}
-              aria-label={`Condición ${i + 1}: ${arm.name}`}
+              aria-label={t("co.condition", { i: i + 1 })}
             >
-              <h4>Condición {i + 1}</h4>
+              <h4>{t("co.condition", { i: i + 1 })}</h4>
               <p className="condition-sub">{subtitleFor(arm.name)}</p>
               {s ? (
                 <div className="metrics">
-                  <Metric label="Vivas" value={s.final_live.toLocaleString("es-ES")} frac={s.final_live / maxLive} />
-                  <Metric label="Muertas" value={s.final_dead.toLocaleString("es-ES")} frac={s.final_dead / maxDead} />
+                  <Metric label={t("co.vivas")} value={num(s.final_live)} frac={s.final_live / maxLive} />
+                  <Metric label={t("co.muertas")} value={num(s.final_dead)} frac={s.final_dead / maxDead} />
                   <Metric
-                    label="Radio"
+                    label={t("co.radio")}
                     value={`${s.final_radius_um.toFixed(0)} µm`}
                     frac={s.final_radius_um / maxR}
                   />
                   <Metric
-                    label="T50"
+                    label={t("co.t50")}
                     value={t50 ?? "—"}
                     frac={s.t50_min == null ? 0 : s.t50_min / maxT50}
                   />
                 </div>
               ) : (
                 <p className="condition-pending" role="status">
-                  {run ? `simulación ${run.job.state}…` : "pendiente de simulación"}
+                  {run ? t("co.running", { state: run.job.state }) : t("co.pending")}
                 </p>
               )}
               <div className="condition-actions">
                 <button type="button" onClick={() => onRerun(arm.name)} disabled={busy}>
-                  Re-ejecutar
+                  {t("co.rerun")}
                 </button>
                 <button type="button" onClick={() => onExport(arm.name)} disabled={!run}>
-                  Exportar
+                  {t("co.export")}
                 </button>
               </div>
               {job && (
                 <details className="provenance">
-                  <summary>¿Cómo sabemos esto?</summary>
+                  <summary>{t("co.evidence")}</summary>
                   <dl>
-                    <dt>run</dt>
+                    <dt>{t("co.evRun")}</dt>
                     <dd title={job.id}>{job.id.slice(0, 8)}</dd>
-                    <dt>motor</dt>
+                    <dt>{t("co.evEngine")}</dt>
                     <dd>{job.engine} v{job.engine_version ?? "?"}</dd>
-                    <dt>semilla</dt>
+                    <dt>{t("co.evSeed")}</dt>
                     <dd>{job.seed}</dd>
                     {job.artifact_digest && (
                       <>
-                        <dt>huella</dt>
+                        <dt>{t("co.evDigest")}</dt>
                         <dd title={job.artifact_digest}>{job.artifact_digest.slice(0, 19)}…</dd>
                       </>
                     )}
                   </dl>
                   <p className="provenance-note">
-                    Números calculados por el motor en esta simulación, no una predicción.
+                    {t("co.evNote")}
                   </p>
                 </details>
               )}
@@ -222,12 +223,12 @@ export default function CopilotPanel({
 
       {plan && !plan.validated && (
         <p className="copilot-note" role="alert">
-          No se pudo planificar: {plan.refusal?.reason ?? "motivo desconocido"}
+          {t("plan.refusedTitle")}: {plan.refusal?.reason ?? "?"}
         </p>
       )}
       {!plan && !planning && (
         <p className="copilot-note">
-          Describe tu hipótesis abajo y pulsa → para generar el plan.
+          {t("co.wait")}
         </p>
       )}
     </aside>

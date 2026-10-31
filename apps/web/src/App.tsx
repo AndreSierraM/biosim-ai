@@ -7,12 +7,13 @@ import CopilotPanel, { type ArmRun } from "./components/CopilotPanel";
 import ParamSliders, { type SliderValues } from "./components/ParamSliders";
 import HowItWorks from "./components/HowItWorks";
 import { api, pollRun } from "./api";
-import { PREVIEW_LABEL, loadPreviewSpheroid } from "./preview";
+import { loadPreviewSpheroid } from "./preview";
 import { buildConclusion } from "./conclusion";
+import { useLocale } from "./i18n";
+import LocaleSwitcher from "./components/LocaleSwitcher";
 import type { EngineInfo, Job, Plan, TrajectoryFile } from "./types";
 import "./App.css";
 
-const DEFAULT_PROMPT = "Compara oxygen availability normal vs baja en el esferoide tumoral";
 const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
 interface SweepRun {
@@ -63,18 +64,6 @@ const SWEEP_CONCURRENCY = 2;
 /** Slider keys map 1:1 to PhysiCell adapter params; other engines keep plan values. */
 const PHYSICELL_SLIDER_KEYS = ["oxygen", "drug_dose", "initial_cells"] as const;
 
-/** Display names for assay params (Spanish UI, English keys stay in code). */
-const NAME_OF: Record<string, string> = {
-  oxygen: "oxígeno",
-  drug_dose: "medicamento",
-  drug_ec50: "EC50",
-  drug_kill_max: "mortalidad máx.",
-  drug_uptake: "captación",
-  max_time_min: "duración",
-  report_interval_min: "intervalo",
-  initial_cells: "tamaño inicial",
-};
-
 function err(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
@@ -104,10 +93,11 @@ function isAbort(e: unknown): boolean {
 }
 
 export default function App() {
+  const { t, locale } = useLocale();
   const [view, setView] = useState<View>("experiment");
   const [engines, setEngines] = useState<EngineInfo[] | null>(null);
   const [plannerBackend, setPlannerBackend] = useState<"fixture" | "live" | null>(null);
-  const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
+  const [prompt, setPrompt] = useState(() => t("chip.oxygen.prompt"));
   const [plan, setPlan] = useState<Plan | null>(null);
   const [runs, setRuns] = useState<Record<string, ArmRun>>({});
   const [sliders, setSliders] = useState<SliderValues>({ oxygen: 38, drug: 0, cells: 12 });
@@ -117,12 +107,14 @@ export default function App() {
   const [sweep, setSweep] = useState<SweepRun[]>([]);
   const [selDose, setSelDose] = useState<number | null>(null);
   const [busy, setBusy] = useState("");
+  const [busyKind, setBusyKind] = useState<"plan" | "run" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sweepError, setSweepError] = useState<string | null>(null);
   const [preview, setPreview] = useState<TrajectoryFile | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [howOpen, setHowOpen] = useState(false);
   const pollControllers = useRef<Set<AbortController>>(new Set());
+  const feedRef = useRef<HTMLDivElement | null>(null);
   /** Experiment generation: stale async results never touch current state. */
   const genRef = useRef(0);
 
@@ -161,14 +153,14 @@ export default function App() {
             : "ready";
   const badgeText =
     badgeState === "live"
-      ? `live Meta · ${plan?.model_version ?? "planner"} + engines`
+      ? t("badge.live", { model: plan?.model_version ?? "planner" })
       : badgeState === "demo"
-        ? `demo IA · fixture ${plan?.model_version ?? ""} (sin llamada Meta)`
+        ? t("badge.demo", { model: plan?.model_version ?? "" })
         : badgeState === "ready"
-          ? "motores listos · genera un plan para verificar la IA"
+          ? t("badge.ready")
           : badgeState === "offline"
-            ? "offline"
-            : "connecting…";
+            ? t("badge.offline")
+            : t("badge.connecting");
 
   useEffect(() => {
     api
@@ -203,7 +195,7 @@ export default function App() {
     setSelDose(null);
     setSelectedArm(null);
     setPlannerBackend(null);
-    setBusy("Planificando…");
+    setBusy(t("busy.planning")); setBusyKind("plan");
     try {
       const p = await api.plan(prompt);
       if (genRef.current !== gen) return;
@@ -217,7 +209,7 @@ export default function App() {
       if (err(e).toLowerCase().includes("planner")) setPlannerBackend(null);
       setError(err(e));
     } finally {
-      if (genRef.current === gen) setBusy("");
+      if (genRef.current === gen) { setBusy(""); setBusyKind(null); }
     }
   };
 
@@ -275,12 +267,12 @@ export default function App() {
       const job = await api.submit(engine, values, seed, idemKey(gen, engine, values, seed));
       if (genRef.current !== gen) return;
       setRuns((prev) => ({ ...prev, [armName]: { job, traj: prev[armName]?.traj ?? null } }));
-      logHistory({ id: job.id, label: `condición ${armName}`, job });
+      logHistory({ id: job.id, label: t("tab.condLabel", { arm: armName }), job });
       const final = await pollRun(job.id, { signal });
       if (genRef.current !== gen) return;
-      logHistory({ id: final.id, label: `condición ${armName}`, job: final });
+      logHistory({ id: final.id, label: t("tab.condLabel", { arm: armName }), job: final });
       if (final.state !== "completed") {
-        throw new Error(`simulación ${final.id} ${final.state}: ${final.error ?? ""}`);
+        throw new Error(t("err.runState", { id: final.id, state: final.state, error: final.error ?? "" }));
       }
       const traj = await api.trajectory(final.id, trajStride());
       if (genRef.current !== gen) return;
@@ -337,9 +329,19 @@ export default function App() {
     drug_ec50: "µM",
     drug_kill_max: "1/min",
     drug_uptake: "1/min",
-    max_time_min: "min",
-    report_interval_min: "min",
-    initial_cells: "células",
+    max_time_min: ` ${t("unit.min")}`,
+    report_interval_min: ` ${t("unit.min")}`,
+    initial_cells: ` ${t("unit.cells")}`,
+  };
+
+  const paramName = (k: string): string => {
+    const hit = t(("sub." + k) as never);
+    return hit === "sub." + k ? k.replace(/_/g, " ") : hit;
+  };
+
+  const stateName = (s: string): string => {
+    const hit = t(("hist.state." + s) as never);
+    return hit === "hist.state." + s ? s : hit;
   };
 
   /** Honest per-arm subtitle: actual run params when available, else effective plan+sliders. */
@@ -350,9 +352,8 @@ export default function App() {
     if (!src || Object.keys(src).length === 0) return armName;
     return Object.entries(src)
       .map(([k, v]) => {
-        const name = NAME_OF[k] ?? k.replace(/_/g, " ");
-        const unit = UNIT_OF[k];
-        return `${name} ${v}${unit ? ` ${unit}` : ""}`;
+        const unit = UNIT_OF[k] ?? "";
+        return `${paramName(k)} ${v}${unit}`;
       })
       .join(" · ");
   };
@@ -361,13 +362,13 @@ export default function App() {
     const none = { oxygen: null, drug: null, cells: null };
     if (!plan?.validated) return none;
     if (!allPhysicell) {
-      const msg = "Este motor usa los valores del plan";
+      const msg = t("params.lockedPlan");
       return { oxygen: msg, drug: msg, cells: msg };
     }
     const lockFor = (key: string): string | null => {
       if (!variedKeys.has(key)) return null;
       const vals = plan.arms.map((a) => String(a.spec.parameters[key]?.value)).join(" vs ");
-      return `Lo define el plan (${vals})`;
+      return t("params.lockedVar", { vals });
     };
     return {
       oxygen: lockFor("oxygen"),
@@ -382,12 +383,12 @@ export default function App() {
     abortPolls();
     setError(null);
     setSweepError(null);
-    setBusy("Ejecutando ambas condiciones…");
+    setBusy(t("busy.runningBoth")); setBusyKind("run");
     try {
       await Promise.all(
         plan.arms.map((arm) => {
           const spec = armValues(arm.name);
-          if (!spec) throw new Error(`falta la condición ${arm.name} en el plan`);
+          if (!spec) throw new Error(t("err.armMissing", { name: arm.name }));
           return runArm(arm.name, spec.engine, spec.values, spec.seed, gen);
         }),
       );
@@ -395,7 +396,7 @@ export default function App() {
       if (genRef.current !== gen || isAbort(e)) return;
       setError(err(e));
     } finally {
-      if (genRef.current === gen) setBusy("");
+      if (genRef.current === gen) { setBusy(""); setBusyKind(null); }
     }
   };
 
@@ -407,14 +408,14 @@ export default function App() {
     abortPolls();
     setError(null);
     setSweepError(null);
-    setBusy(`Repitiendo ${armName}…`);
+    setBusy(t("busy.rerun", { arm: armName })); setBusyKind("run");
     try {
       await runArm(armName, spec.engine, spec.values, spec.seed, gen);
     } catch (e) {
       if (genRef.current !== gen || isAbort(e)) return;
       setError(err(e));
     } finally {
-      if (genRef.current === gen) setBusy("");
+      if (genRef.current === gen) { setBusy(""); setBusyKind(null); }
     }
   };
 
@@ -430,13 +431,13 @@ export default function App() {
       );
       if (genRef.current !== gen) return;
       setSweep((prev) => [...prev, { dose, job, traj: null }]);
-      logHistory({ id: job.id, label: `dosis ${dose} µM`, job });
+      logHistory({ id: job.id, label: t("sweep.dose", { d: dose }), job });
       const final = await pollRun(job.id, { signal });
       if (genRef.current !== gen) return;
-      logHistory({ id: final.id, label: `dosis ${dose} µM`, job: final });
+      logHistory({ id: final.id, label: t("sweep.dose", { d: dose }), job: final });
       if (final.state !== "completed") {
         setSweep((prev) => prev.map((s) => (s.job.id === final.id ? { dose, job: final, traj: null } : s)));
-        throw new Error(`dosis ${dose}: simulación ${final.id} ${final.state}: ${final.error ?? ""}`);
+        throw new Error(t("err.doseState", { dose, id: final.id, state: final.state, error: final.error ?? "" }));
       }
       const traj = await api.trajectory(final.id, trajStride());
       if (genRef.current !== gen) return;
@@ -462,13 +463,13 @@ export default function App() {
         .map(Number),
     )].sort((a, b) => a - b);
     if (doses.length === 0 || doses.some((d) => !Number.isFinite(d) || d < 0 || d > 100)) {
-      const msg = "las dosis deben ser números entre 0 y 100 µM, p. ej. 0, 0.3, 1, 3, 10";
+      const msg = t("sweep.errRange");
       setError(msg);
       setSweepError(msg);
       return;
     }
     if (doses.length > 8) {
-      const msg = "máximo 8 dosis por barrido";
+      const msg = t("sweep.errMax");
       setError(msg);
       setSweepError(msg);
       return;
@@ -479,7 +480,7 @@ export default function App() {
     setSweepError(null);
     setSweep([]);
     setSelDose(doses[0]);
-    setBusy(`Ejecutando barrido de dosis (${doses.length} simulaciones)…`);
+    setBusy(t("sweep.running", { n: doses.length })); setBusyKind("run");
     const queue = [...doses];
     const failures: string[] = [];
     const worker = async () => {
@@ -498,11 +499,11 @@ export default function App() {
     );
     if (genRef.current !== gen) return;
     if (failures.length > 0) {
-      const msg = `${failures.length} of ${doses.length} doses failed: ${failures.join("; ")}`;
+      const msg = t("sweep.errSome", { n: failures.length, total: doses.length, details: failures.join("; ") });
       setError(msg);
       setSweepError(msg);
     }
-    setBusy("");
+    setBusy(""); setBusyKind(null);
   };
 
   const doExport = async (id: string) => {
@@ -531,8 +532,8 @@ export default function App() {
   const hasCompletedRun =
     trajs.length > 0 || sweep.some((s) => s.traj !== null);
   const showPreview = !hasCompletedRun;
-  const planning = busy.startsWith("Planificando");
-  const running = busy.startsWith("Ejecutando") || busy.startsWith("Repitiendo");
+  const planning = busyKind === "plan";
+  const running = busyKind === "run";
   /** The copilot panel only earns its space once there is a plan to show. */
   const showCopilot = planning || plan !== null;
   const physicell = engines?.find((e) => e.engine_id === "physicell");
@@ -553,13 +554,27 @@ export default function App() {
           plan.arms
             .filter((a) => runs[a.name]?.traj)
             .map((a) => ({
-              label: `Condición ${plan.arms.indexOf(a) + 1} (${a.name})`,
+              label: `${t("tab.condition", { i: plan.arms.indexOf(a) + 1 })} (${a.name})`,
               summary: (runs[a.name].traj as TrajectoryFile).summary,
             })),
+          locale,
         )
       : null;
 
   const historyRows = [...history].reverse();
+
+  // Chat-like follow: keep the newest output in view while work progresses,
+  // but never yank the user away when they scrolled up to read.
+  const followToken = `${busy}|${plan?.validated ?? ""}|${trajs.length}|${sweep.length}|${conclusion !== null}`;
+  useEffect(() => {
+    const el = feedRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 260;
+    if (!nearBottom) return;
+    const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [followToken]);
 
   return (
     <div className="shell">
@@ -574,16 +589,17 @@ export default function App() {
             <span className="dot" aria-hidden="true" />
             {badgeText}
           </span>
+          <LocaleSwitcher />
           <button type="button" className="how-btn" onClick={() => setHowOpen(true)}>
-            <span aria-hidden="true">?</span> Cómo funciona
+            <span aria-hidden="true">?</span> {t("how.button")}
           </button>
         </header>
 
         {view === "experiment" && (
           <>
-            <div className="feed">
+            <div className="feed" ref={feedRef}>
             <div className="feed-head">
-              <h2 className="prompt-title">¿Qué quieres descubrir?</h2>
+              <h2 className="prompt-title">{t("feed.ask")}</h2>
             </div>
 
             {error && <p className="error-banner" role="alert">{error}</p>}
@@ -595,21 +611,18 @@ export default function App() {
             )}
 
             {plan && !plan.validated && (
-              <section className="refusal-card" aria-label="plan rechazado">
-                <h2>No se pudo planificar</h2>
-                <p>{plan.refusal?.reason ?? "unknown reason"}</p>
-                <p className="hint">
-                  Prueba con oxígeno (p. ej. “compara oxygen availability normal vs baja”) o dosis de
-                  fármaco (p. ej. “qué drug dose frena el crecimiento”).
-                </p>
+              <section className="refusal-card" aria-label={t("plan.refusedAria")}>
+                <h2>{t("plan.refusedTitle")}</h2>
+                <p>{plan.refusal?.reason ?? t("plan.unknownReason")}</p>
+                <p className="hint">{t("plan.hint", { oxygen: t("chip.oxygen.prompt"), drug: t("chip.drug.prompt") })}</p>
               </section>
             )}
 
             <div className={showCopilot ? "stage-grid" : "stage-grid is-solo"}>
               <div className="stage-main">
-                <section className="viewer-card" aria-label="simulación 3D">
+                <section className="viewer-card" aria-label={t("feed.viewer")}>
                   {armNames.length > 1 && (
-                    <div className="arm-tabs" role="tablist" aria-label="condiciones">
+                    <div className="arm-tabs" role="tablist" aria-label={t("tab.list")}>
                       {armNames.map((name, i) => (
                         <button
                           key={name}
@@ -619,7 +632,7 @@ export default function App() {
                           className={activeArm === name ? "arm-tab is-on" : "arm-tab"}
                           onClick={() => setSelectedArm(name)}
                         >
-                          Condición {i + 1} · {name}
+                          {t("tab.condition", { i: i + 1 })} · {name}
                         </button>
                       ))}
                     </div>
@@ -627,8 +640,8 @@ export default function App() {
                   {viewerData ? (
                     <Suspense
                       fallback={
-                        <div className="viewer-skeleton" role="status" aria-label="cargando visor 3D…">
-                          <span className="visually-hidden">cargando visor 3D…</span>
+                        <div className="viewer-skeleton" role="status" aria-label={t("viewer.skeleton")}>
+                          <span className="visually-hidden">{t("viewer.skeleton")}</span>
                         </div>
                       }
                     >
@@ -641,43 +654,42 @@ export default function App() {
                           viewerIsLive ? (
                             <span className="live-badge">
                               <span className="dot" aria-hidden="true" />
-                              Simulación en vivo
+                              {t("viewer.live")}
                             </span>
                           ) : (
-                            <span className="preview-badge">{PREVIEW_LABEL}</span>
+                            <span className="preview-badge">{t("viewer.example")}</span>
                           )
                         }
                       />
                     </Suspense>
                   ) : previewError ? (
                     <p className="inline-error" role="alert">
-                      Preview unavailable ({previewError}). Genera un plan para correr el motor.
+                      {t("viewer.previewFail", { error: previewError })}
                     </p>
                   ) : (
-                    <div className="viewer-skeleton" role="status" aria-label="cargando preview…">
-                      <span className="visually-hidden">cargando preview…</span>
+                    <div className="viewer-skeleton" role="status" aria-label={t("viewer.skeletonPreview")}>
+                      <span className="visually-hidden">{t("viewer.skeletonPreview")}</span>
                     </div>
                   )}
                 </section>
 
                 {conclusion && (
-                  <section className="conclusion-card" aria-label="conclusión de BioSim AI">
+                  <section className="conclusion-card" aria-label={t("feed.conclusion")}>
                     <span className="conclusion-icon" aria-hidden="true">✦</span>
                     <div>
-                      <h2>Conclusión de BioSim AI</h2>
+                      <h2>{t("concl.title")}</h2>
                       <p>{conclusion}</p>
                       <p className="conclusion-src">
-                        Generada por reglas desde los resúmenes calculados · sin LLM para números
+                        {t("concl.footer")}
                       </p>
                     </div>
                   </section>
                 )}
 
                 {physicell?.available && !showPreview && (
-                  <section className="sweep-card" aria-label="barrido de dosis">
+                  <section className="sweep-card" aria-label={t("sweep.titleShort")}>
                     <h2>
-                      Barrido de dosis{" "}
-                      <span className="model">oxígeno {SWEEP_OXYGEN} mmHg · semilla {SWEEP_SEED}</span>
+                      {t("sweep.title", { o: SWEEP_OXYGEN, s: SWEEP_SEED })}
                     </h2>
                     <div className="sweep-row">
                       <div className="sweep-field">
@@ -688,7 +700,7 @@ export default function App() {
                             setLadder(e.target.value);
                             setSweepError(null);
                           }}
-                          aria-label="dosis en µM separadas por comas"
+                          aria-label={t("sweep.ladderAria")}
                           aria-invalid={sweepError ? true : undefined}
                           placeholder="0, 0.3, 1, 3, 10"
                         />
@@ -699,13 +711,13 @@ export default function App() {
                         )}
                       </div>
                       <button type="button" className="primary-btn" onClick={doSweep} disabled={!!busy}>
-                        Barrido
+                        {t("sweep.button")}
                       </button>
                     </div>
                     {sweep.length === 0 && (
                       <p className="hint">
-                        Escribe dosis separadas por comas (µM, máx. 8) y pulsa{" "}
-                        <strong>Barrido</strong> para ver la curva dosis-respuesta e IC50.
+                        {t("sweep.hintStart")}{" "}
+                        <strong>{t("sweep.button")}</strong> {t("sweep.hintEnd")}
                       </p>
                     )}
                     {sweep.length > 0 && (
@@ -738,8 +750,8 @@ export default function App() {
                               <CellViewer key={sel.job.id} data={sel.traj} yMax={sweepMax} />
                             </Suspense>
                           ) : (
-                            <div className="viewer-skeleton" role="status" aria-label={`calculando dosis ${sel.dose}…`}>
-                              <span className="visually-hidden">calculando dosis {sel.dose}…</span>
+                            <div className="viewer-skeleton" role="status" aria-label={t("sweep.calcDose", { d: sel.dose })}>
+                              <span className="visually-hidden">{t("sweep.calcDose", { d: sel.dose })}</span>
                             </div>
                           );
                         })()}
@@ -778,24 +790,24 @@ export default function App() {
         )}
 
         {view === "history" && (
-          <section className="page-card" aria-label="mis experimentos">
-            <h2>Mis experimentos</h2>
-            <p className="page-sub">Tus simulaciones de este navegador (se conservan al recargar).</p>
+          <section className="page-card" aria-label={t("hist.title")}>
+            <h2>{t("hist.title")}</h2>
+            <p className="page-sub">{t("hist.sub")}</p>
             {historyRows.length === 0 ? (
               <p className="hint">
-                Aún no hay runs. <button type="button" className="link-btn" onClick={() => setView("experiment")}>Experimenta</button> para crear el primero.
+                {t("hist.emptyA")} <button type="button" className="link-btn" onClick={() => setView("experiment")}>{t("hist.emptyB")}</button> {t("hist.emptyC")}
               </p>
             ) : (
               <div className="table-scroll">
                 <table>
                   <thead>
                     <tr>
-                      <th>id</th>
-                      <th>condición</th>
-                      <th>estado</th>
-                      <th>vivas</th>
-                      <th>muertas</th>
-                      <th>radio</th>
+                      <th>{t("hist.colId")}</th>
+                      <th>{t("hist.colCond")}</th>
+                      <th>{t("hist.colState")}</th>
+                      <th>{t("hist.colLive")}</th>
+                      <th>{t("hist.colDead")}</th>
+                      <th>{t("hist.colRadius")}</th>
                       <th />
                     </tr>
                   </thead>
@@ -804,13 +816,13 @@ export default function App() {
                       <tr key={r.id}>
                         <td title={r.id}>{r.id.slice(0, 8)}</td>
                         <td>{r.label}</td>
-                        <td>{r.job.state}</td>
+                        <td>{stateName(r.job.state)}</td>
                         <td>{r.job.summary ? r.job.summary.final_live : "—"}</td>
                         <td>{r.job.summary ? r.job.summary.final_dead : "—"}</td>
                         <td>{r.job.summary ? `${r.job.summary.final_radius_um.toFixed(0)} µm` : "—"}</td>
                         <td>
                           <button type="button" onClick={() => void doExport(r.id)}>
-                            Exportar
+                            {t("hist.export")}
                           </button>
                         </td>
                       </tr>
@@ -823,20 +835,18 @@ export default function App() {
         )}
 
         {view === "learn" && (
-          <section className="page-card" aria-label="aprender">
-            <h2>Aprender</h2>
-            <p className="page-sub">Qué calcula BioSim AI y qué supone cada run.</p>
+          <section className="page-card" aria-label={t("learn.title")}>
+            <h2>{t("learn.title")}</h2>
+            <p className="page-sub">{t("learn.sub")}</p>
             <div className="learn-grid">
               <article className="learn-card">
-                <h3>El modelo</h3>
+                <h3>{t("learn.model")}</h3>
                 <p>
-                  PhysiCell simula cada célula como un agente en 3D: crece, se divide y puede morir
-                  por falta de oxígeno (necrosis bajo 8 mmHg) o por fármaco (apoptosis Hill sobre
-                  todas las vivas). Las posiciones del visor son las calculadas por el motor.
+                  {t("learn.modelBody")}
                 </p>
               </article>
               <article className="learn-card">
-                <h3>Supuestos del último run</h3>
+                <h3>{t("learn.assump")}</h3>
                 {firstTraj ? (
                   <ul>
                     {firstTraj.meta.assumptions.map((a) => (
@@ -844,22 +854,22 @@ export default function App() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="hint">Corre tu primera simulación para ver sus supuestos.</p>
+                  <p className="hint">{t("learn.assumpEmpty")}</p>
                 )}
               </article>
               <article className="learn-card">
-                <h3>Motores</h3>
+                <h3>{t("learn.engines")}</h3>
                 {engines ? (
                   <ul>
                     {engines.map((e) => (
                       <li key={e.engine_id}>
                         {e.engine_id} v{e.engine_version ?? "?"} —{" "}
-                        {e.available ? "disponible" : `no disponible (${e.reason})`}
+                        {e.available ? t("learn.enginesOn") : t("learn.enginesOff", { reason: e.reason })}
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="hint">Conectando con la API…</p>
+                  <p className="hint">{t("learn.connecting")}</p>
                 )}
               </article>
             </div>

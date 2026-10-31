@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useLocale } from "../i18n";
 import type { TrajectoryFile } from "../types";
 
 const W = 640;
@@ -22,6 +23,8 @@ interface Props {
 }
 
 export default function SeriesChart({ data, frame, onSeek, yMax }: Props) {
+  const { t, locale } = useLocale();
+  const dec = (v: number) => v.toLocaleString(locale === "es" ? "es-ES" : "en-US");
   const n = data.frames.length;
   const maxT = data.meta.duration_min;
   const safeMaxT = Number.isFinite(maxT) && maxT > 0 ? maxT : 1;
@@ -46,8 +49,10 @@ export default function SeriesChart({ data, frame, onSeek, yMax }: Props) {
   const cur = series[safeFrame] ?? { t: 0, live: 0, dead: 0 };
   const valueText =
     n === 0
-      ? "sin fotogramas"
-      : `fotograma ${safeFrame + 1} de ${n}, t ${fmtT(cur.t)}${useDays ? "" : " min"}, ${cur.live} vivas, ${cur.dead} muertas`;
+      ? t("series.empty")
+      : t("series.value", { i: safeFrame + 1, n, t: fmtT(cur.t),
+          unit: useDays ? "" : " " + t("viewer.min"),
+          live: dec(cur.live), dead: dec(cur.dead) });
 
   return (
     <svg
@@ -55,7 +60,7 @@ export default function SeriesChart({ data, frame, onSeek, yMax }: Props) {
       viewBox={`0 0 ${W} ${H}`}
       role="slider"
       tabIndex={0}
-      aria-label="células vivas y muertas en el tiempo (clic o flechas, Enter, Espacio para moverse)"
+      aria-label={t("series.aria")}
       aria-valuemin={0}
       aria-valuemax={Math.max(0, n - 1)}
       aria-valuenow={safeFrame}

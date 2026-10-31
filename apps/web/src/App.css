@@ -332,6 +332,45 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   flex: none;
 }
 
+.locale-switch {
+  display: inline-flex;
+  background: var(--card);
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow-1);
+  padding: 3px;
+  gap: 2px;
+  flex: none;
+}
+
+.locale-switch button {
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-pill);
+  padding: 7px 12px;
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.locale-switch button.on {
+  background: var(--primary);
+  color: #fff;
+}
+
+/* Conversational entrances: new cards fade up once, never on scroll. */
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.conclusion-card,
+.sweep-card,
+.refusal-card {
+  animation: cardIn 0.22s ease-out;
+}
+
 .how-btn span {
   display: inline-flex;
   align-items: center;
@@ -1579,7 +1618,8 @@ input.field:focus {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .spinner, .status.is-connecting .dot, .viewer-skeleton {
+  .spinner, .status.is-connecting .dot, .viewer-skeleton,
+  .conclusion-card, .sweep-card, .refusal-card {
     animation: none;
   }
   button, select, input, textarea {

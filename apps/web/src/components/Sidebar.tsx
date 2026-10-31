@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useLocale } from "../i18n";
 
 export type View = "experiment" | "history" | "learn";
 
@@ -9,15 +10,18 @@ interface Props {
   children?: ReactNode;
 }
 
-const ITEMS: { id: View; label: string; icon: string }[] = [
-  { id: "experiment", label: "Experimentar", icon: "▶" },
-  { id: "history", label: "Mis experimentos", icon: "▤" },
-  { id: "learn", label: "Aprender", icon: "✎" },
-];
+function items(t: (key: "nav.experiment" | "nav.history" | "nav.learn") => string) {
+  return [
+    { id: "experiment", label: t("nav.experiment"), icon: "▶" },
+    { id: "history", label: t("nav.history"), icon: "▤" },
+    { id: "learn", label: t("nav.learn"), icon: "✎" },
+  ] as const;
+}
 
 export default function Sidebar({ view, onNav, children }: Props) {
+  const { t } = useLocale();
   return (
-    <aside className="sidebar" aria-label="navegación principal">
+    <aside className="sidebar" aria-label={t("nav.main")}>
       <div className="side-brand">
         <span className="side-logo" aria-hidden="true">
           <i className="b1" />
@@ -27,12 +31,12 @@ export default function Sidebar({ view, onNav, children }: Props) {
         </span>
         <span className="side-brand-text">
           <strong>BioSim</strong>
-          <small>IA · Simulador biológico</small>
+          <small>{t("brand.sub")}</small>
         </span>
       </div>
-      <nav aria-label="secciones">
+      <nav aria-label={t("nav.main")}>
         <ul className="side-nav">
-          {ITEMS.map((item) => (
+          {items(t).map((item) => (
             <li key={item.id}>
               <button
                 type="button"
@@ -55,8 +59,8 @@ export default function Sidebar({ view, onNav, children }: Props) {
           ?
         </span>
         <p>
-          <strong>¿Necesitas ayuda?</strong>
-          <span>Solo escribe lo que quieres ver.</span>
+          <strong>{t("help.title")}</strong>
+          <span>{t("help.text")}</span>
         </p>
       </div>
     </aside>

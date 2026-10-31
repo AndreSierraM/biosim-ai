@@ -1,3 +1,5 @@
+import { useLocale } from "../i18n";
+
 export interface SliderValues {
   oxygen: number;
   drug: number;
@@ -12,49 +14,29 @@ interface Props {
   locks: Record<keyof SliderValues, string | null>;
 }
 
-const SLIDERS = [
-  {
-    key: "oxygen" as const,
-    name: "Oxígeno",
-    unit: "mmHg",
-    min: 0,
-    max: 100,
-    step: 1,
-    fmt: (v: number) => `${v.toFixed(0)} mmHg`,
-  },
-  {
-    key: "drug" as const,
-    name: "Medicamento",
-    unit: "µM",
-    min: 0,
-    max: 10,
-    step: 0.1,
-    fmt: (v: number) => `${v.toFixed(1)} µM`,
-  },
-  {
-    key: "cells" as const,
-    name: "Tamaño inicial",
-    unit: "células",
-    min: 4,
-    max: 40,
-    step: 1,
-    fmt: (v: number) => `${v.toFixed(0)} células`,
-  },
-];
-
 /**
  * Assay parameters. They override the matching PhysiCell keys
  * (oxygen, drug_dose, initial_cells) on the next run of each arm.
  */
 export default function ParamSliders({ values, onChange, disabled, locks }: Props) {
+  const { t } = useLocale();
+  const unitCells = t("params.unitCells");
+  const sliders = [
+    { key: "oxygen" as const, name: t("params.oxygen"), min: 0, max: 100, step: 1,
+      fmt: (v: number) => `${v.toFixed(0)} mmHg` },
+    { key: "drug" as const, name: t("params.drug"), min: 0, max: 10, step: 0.1,
+      fmt: (v: number) => `${v.toFixed(1)} µM` },
+    { key: "cells" as const, name: t("params.cells"), min: 4, max: 40, step: 1,
+      fmt: (v: number) => `${v.toFixed(0)} ${unitCells}` },
+  ];
   return (
-    <section className="params-card" aria-label="parámetros del ensayo">
+    <section className="params-card" aria-label={t("params.title")}>
       <div className="params-head">
-        <h2>Parámetros</h2>
-        <p>Se aplican a ambas condiciones en la próxima simulación. La variable del experimento la define el plan.</p>
+        <h2>{t("params.title")}</h2>
+        <p>{t("params.desc")}</p>
       </div>
       <div className="params-grid">
-        {SLIDERS.map((s) => {
+        {sliders.map((s) => {
           const lock = locks[s.key];
           return (
             <div key={s.key} className={lock ? "param is-locked" : "param"}>

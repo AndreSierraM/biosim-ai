@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useLocale } from "../i18n";
 import { niceCeil } from "./SeriesChart";
 
 const W = 640;
@@ -46,6 +47,7 @@ export function ic50(points: DosePoint[]): number | null {
 }
 
 export default function DoseChart({ points, selected, onSelect }: Props) {
+  const { t } = useLocale();
   const sorted = useMemo(() => [...points].sort((p, q) => p.dose - q.dose), [points]);
   const maxDose = useMemo(() => Math.max(0, ...sorted.map((s) => s.dose)), [sorted]);
   if (sorted.length === 0) return null;
@@ -65,15 +67,13 @@ export default function DoseChart({ points, selected, onSelect }: Props) {
         className="chart"
         viewBox={`0 0 ${W} ${H}`}
         role="img"
-        aria-label={`células vivas finales frente a dosis de fármaco en µM (pulsa un punto para verlo)${
-          ic === null ? "" : `, IC50 aprox ${ic.toFixed(2)} µM`
-        }`}
+        aria-label={t("dose.imgAria") + (ic === null ? "" : t("dose.imgAriaIc50", { v: ic.toFixed(2) }))}
       >
         <line x1={PAD} x2={W - 16} y1={y(0)} y2={y(0)} className="grid" />
         <line x1={PAD} x2={W - 16} y1={y(maxY)} y2={y(maxY)} className="grid" />
         <line x1={PAD} x2={W - 16} y1={y(half)} y2={y(half)} className="cursor" strokeDasharray="5 4" />
         <text x={W - 20} y={y(half) - 6} textAnchor="end" className="axis">
-          50% del control
+          {t("dose.axisHalf")}
         </text>
         <text x={PAD - 6} y={y(maxY) + 4} textAnchor="end" className="axis">
           {maxY}
@@ -89,7 +89,7 @@ export default function DoseChart({ points, selected, onSelect }: Props) {
           <g aria-hidden="true">
             <line x1={xIc} x2={xIc} y1={30} y2={H - PAD} className="ic50-marker" />
             <text x={xIcLabel} y={22} textAnchor="middle" className="ic50-label">
-              IC50 ≈ {ic.toFixed(2)} µM
+              {t("dose.ic50", { v: ic.toFixed(2) })}
             </text>
           </g>
         )}
@@ -98,7 +98,7 @@ export default function DoseChart({ points, selected, onSelect }: Props) {
             key={s.dose}
             role="button"
             tabIndex={0}
-            aria-label={`ver dosis ${s.dose} µM, ${s.live} células vivas`}
+            aria-label={t("dose.point", { d: s.dose, live: s.live })}
             aria-pressed={s.dose === selected}
             onClick={() => onSelect(s.dose)}
             onKeyDown={(e) => {
@@ -132,19 +132,19 @@ export default function DoseChart({ points, selected, onSelect }: Props) {
           </g>
         ))}
         <text x={W - 20} y={H - 6} textAnchor="end" className="axis">
-          dosis (µM, escala log)
+          {t("dose.axis")}
         </text>
       </svg>
       <p className="ic50">
         {ic === null ? (
           <>
-            IC50 <span className="ic50-hint">no estimable con estas dosis — amplía el rango</span>
+            {t("dose.captionWithout")} <span className="ic50-hint">{t("dose.captionHint")}</span>
           </>
         ) : (
-          `IC50 aprox ${ic.toFixed(2)} µM · interpolación de ensayo, no clínica`
+          t("dose.captionWith", { v: ic.toFixed(2) })
         )}
       </p>
-      <table className="dose-table" aria-label="dosis y células vivas">
+      <table className="dose-table" aria-label={t("dose.table")}>
         <thead>
           <tr>
             <th scope="col">dosis (µM)</th>

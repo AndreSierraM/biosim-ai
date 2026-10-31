@@ -1,3 +1,5 @@
+import { tFor } from "./i18n";
+import type { Locale } from "./i18n";
 import type { TrajectorySummary } from "./types";
 
 export interface ConclusionArm {
@@ -6,8 +8,8 @@ export interface ConclusionArm {
   summary: TrajectorySummary;
 }
 
-function fmtInt(n: number): string {
-  return n.toLocaleString("es-ES");
+function fmtInt(n: number, locale: Locale): string {
+  return n.toLocaleString(locale === "es" ? "es-ES" : "en-US");
 }
 
 /** Honest duration label from minutes; null stays null (never invented). */
@@ -27,9 +29,11 @@ function deadFraction(s: TrajectorySummary): number {
 /**
  * Rule-based conclusion from REAL run summaries. Pure function of numbers the
  * engines computed — it never calls the LLM and never invents values. With a
- * single arm it describes; with two it compares.
+ * single arm it describes; with two it compares. Language follows locale.
  */
-export function buildConclusion(arms: ConclusionArm[]): string | null {
+export function buildConclusion(arms: ConclusionArm[], locale: Locale = "es"): string | null {
+  const t = (key: Parameters<typeof tFor>[1], vars?: Record<string, string | number>) =>
+    tFor(locale, key, vars);
   const done = arms.filter((a) => a.summary.n_frames > 0);
   if (done.length === 0) return null;
   if (done.length === 1) {
@@ -37,11 +41,12 @@ export function buildConclusion(arms: ConclusionArm[]): string | null {
     const s = a.summary;
     const t50 = fmtT50(s.t50_min);
     return (
-      `${a.label} terminó con ${fmtInt(s.final_live)} células vivas y ` +
-      `${fmtInt(s.final_dead)} muertas (radio ${s.final_radius_um.toFixed(0)} µm).` +
-      (t50
-        ? ` La población cayó a la mitad de su pico a los ${t50} (t50).`
-        : ` La población nunca cayó a la mitad de su pico: el esferoide siguió creciendo.`)
+      t("concl.single", {
+        label: a.label,
+        live: fmtInt(s.final_live, locale),
+        dead: fmtInt(s.final_dead, locale),
+        r: s.final_radius_um.toFixed(0),
+      }) + (t50 ? t("concl.singleT50", { t: t50 }) : t("concl.singleNoT50"))
     );
   }
   const [a, b] = done;
@@ -50,9 +55,7 @@ export function buildConclusion(arms: ConclusionArm[]): string | null {
   const parts: string[] = [];
   const dLive = sb.final_live - sa.final_live;
   if (dLive === 0) {
-    parts.push(
-      `ambas condiciones terminaron con ${fmtInt(sa.final_live)} células vivas`,
-    );
+    parts.push(t("concl.equal", { n: fmtInt(sa.final_live, locale) }));
   } else {
     const high = dLive > 0 ? b : a;
     const low = dLive > 0 ? a : b;
@@ -60,15 +63,19 @@ export function buildConclusion(arms: ConclusionArm[]): string | null {
     const lo = dLive > 0 ? sa.final_live : sb.final_live;
     if (lo === 0) {
       parts.push(
-        `${low.label} terminó sin células vivas frente a ` +
-          `${fmtInt(hi)} de ${high.label} en esta simulación`,
+        t("concl.zero", { low: low.label, hi: fmtInt(hi, locale), high: high.label }),
       );
     } else {
       const pctLess = Math.round((((hi - lo) / hi) * 100) * 10) / 10;
       const pctText = Number.isInteger(pctLess) ? String(pctLess) : pctLess.toFixed(1);
       parts.push(
-        `${low.label} terminó con un ${pctText} % menos de células vivas que ` +
-          `${high.label} (${fmtInt(lo)} frente a ${fmtInt(hi)}, en esta simulación)`,
+        t("concl.less", {
+          low: low.label,
+          pct: pctText,
+          high: high.label,
+          lo: fmtInt(lo, locale),
+          hi: fmtInt(hi, locale),
+        }),
       );
     }
   }
@@ -78,35 +85,35 @@ export function buildConclusion(arms: ConclusionArm[]): string | null {
     const higher = fb > fa ? b : a;
     const [hi, lo] = fb > fa ? [fb, fa] : [fa, fb];
     parts.push(
-      `la fracción muerta fue mayor en ${higher.label} ` +
-        `(${(hi * 100).toFixed(0)} % frente a ${(lo * 100).toFixed(0)} %)`,
+      t("concl.deadFrac", {
+        label: higher.label,
+        a: (hi * 100).toFixed(0),
+        b: (lo * 100).toFixed(0),
+      }),
     );
   } else {
-    parts.push(
-      `la fracción muerta fue similar en ambas (≈${(fa * 100).toFixed(0)} %)`,
-    );
+    parts.push(t("concl.deadSimilar", { p: (fa * 100).toFixed(0) }));
   }
   const dr = sb.final_radius_um - sa.final_radius_um;
   if (Math.abs(dr) >= 1) {
     const bigger = dr > 0 ? b : a;
     const [hi, lo] = dr > 0 ? [sb.final_radius_um, sa.final_radius_um] : [sa.final_radius_um, sb.final_radius_um];
     parts.push(
-      `y el radio final fue mayor en ${bigger.label} ` +
-        `(${hi.toFixed(0)} µm frente a ${lo.toFixed(0)} µm)`,
+      t("concl.radius", { label: bigger.label, a: hi.toFixed(0), b: lo.toFixed(0) }),
     );
   } else {
-    parts.push(`y el radio final fue parecido (≈${sa.final_radius_um.toFixed(0)} µm)`);
+    parts.push(t("concl.radiusSimilar", { r: sa.final_radius_um.toFixed(0) }));
   }
   const ta = fmtT50(sa.t50_min);
   const tb = fmtT50(sb.t50_min);
   let t50bit = "";
   if (ta && tb) {
-    t50bit = ` T50: ${ta} en ${a.label} y ${tb} en ${b.label}.`;
+    t50bit = t("concl.t50both", { ta, la: a.label, tb, lb: b.label });
   } else if (ta || tb) {
     const which = ta ? a : b;
-    t50bit = ` Solo ${which.label} cayó a la mitad de su pico (${ta ?? tb}); la otra siguió creciendo.`;
+    t50bit = t("concl.prolif", { label: which.label, t: ta ?? tb ?? "" });
   } else {
-    t50bit = ` Ninguna cayó a la mitad de su pico: ambas siguieron creciendo.`;
+    t50bit = t("concl.prolifNone");
   }
   const first = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
   return `${first}; ${parts.slice(1).join("; ")}.${t50bit}`;

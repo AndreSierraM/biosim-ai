@@ -1,4 +1,5 @@
 import type { EngineInfo, Job, Plan, TrajectoryFile } from "./types";
+import { getLocale, tFor } from "./i18n";
 
 /* Same-origin by default so dev goes through the Vite /v1 proxy (no CORS
  * needed). Set VITE_API_URL for preview/prod pointing at a reachable API. */
@@ -94,7 +95,7 @@ export async function pollRun(
       return job;
     }
     if (Date.now() - start > timeoutMs) {
-      throw new Error(`la simulación ${id} tardó demasiado (estado ${job.state})`);
+      throw new Error(tFor(getLocale(), "api.timeout", { id, state: job.state }));
     }
     await sleep(delay, signal);
     delay = Math.min(5000, delay * 2);

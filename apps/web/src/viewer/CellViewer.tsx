@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { useLocale } from "../i18n";
 import type { TrajectoryFile } from "../types";
 import SeriesChart from "./SeriesChart";
 
@@ -10,10 +11,10 @@ const LIVE = new THREE.Color(0x7c3aed);
 const DEAD = new THREE.Color(0xf43f5e);
 const BG = 0xe9edfb;
 
-const VIEWS: { label: string; name: string; pos: [number, number, number] }[] = [
-  { label: "Vista", name: "libre", pos: [70, 65, 168] },
-  { label: "Vista", name: "cenital", pos: [0, 225, 55] },
-  { label: "Vista", name: "lateral", pos: [195, 28, 40] },
+const VIEWS: { nameKey: "viewer.viewFree" | "viewer.viewTop" | "viewer.viewSide"; pos: [number, number, number] }[] = [
+  { nameKey: "viewer.viewFree", pos: [70, 65, 168] },
+  { nameKey: "viewer.viewTop", pos: [0, 225, 55] },
+  { nameKey: "viewer.viewSide", pos: [195, 28, 40] },
 ];
 
 function Icon({ d, filled = false }: { d: string; filled?: boolean }) {
@@ -378,6 +379,7 @@ export default function CellViewer({
     return () => document.removeEventListener("fullscreenchange", onChange);
   }, []);
 
+  const { t } = useLocale();
   const safeFrame = n > 0 ? Math.min(frame, n - 1) : 0;
   const f = data.frames[safeFrame] ?? {
     t_min: 0,
@@ -394,48 +396,48 @@ export default function CellViewer({
         className="canvas-wrap"
         ref={mountRef}
         role="img"
-        aria-label={`Esferoide 3D, ${stats.live} vivas, ${stats.dead} muertas, t ${tLabel}`}
+        aria-label={t("viewer.aria", { live: stats.live, dead: stats.dead, t: tLabel })}
       >
         {glDead && (
           <div className="viewer-fallback" role="alert">
-            <p>Tu dispositivo no pudo mostrar el 3D (WebGL no disponible).</p>
-            <p>Los números de abajo y la gráfica siguen siendo los calculados por el motor.</p>
+            <p>{t("viewer.noGlTitle")}</p>
+            <p>{t("viewer.noGlBody")}</p>
           </div>
         )}
         {badge && <div className="viewer-badge">{badge}</div>}
-        <div className="viewer-toolbar" role="group" aria-label="herramientas de vista">
+        <div className="viewer-toolbar" role="group" aria-label={t("viewer.tools")}>
           <button
             type="button"
             className={spin ? "tool is-on" : "tool"}
             aria-pressed={spin}
             onClick={toggleSpin}
             disabled={reducedMotion}
-            title={reducedMotion ? "Rotación desactivada (movimiento reducido)" : "Rotar cámara"}
+            title={reducedMotion ? t("viewer.rotateOff") : t("viewer.toggleRotate")}
           >
             <Icon d={PATH_ROTATE} />
-            Rotar
+            {t("viewer.rotate")}
           </button>
           <button
             type="button"
             className={zoomed ? "tool is-on" : "tool"}
             aria-pressed={zoomed}
             onClick={toggleZoom}
-            title="Acercar / alejar"
+            title={t("viewer.zoomToggle")}
           >
             <Icon d={PATH_ZOOM} />
-            Zoom
+            {t("viewer.zoom")}
           </button>
-          <button type="button" className="tool" onClick={cycleView} title={`Vista actual: ${VIEWS[viewIdx].name}`}>
+          <button type="button" className="tool" onClick={cycleView} title={t("viewer.viewCurrent", { name: t(VIEWS[viewIdx].nameKey) })}>
             <Icon d={PATH_EYE} />
-            Vista
+            {t("viewer.view")}
           </button>
         </div>
-        <div className="player" role="group" aria-label="reproductor">
+        <div className="player" role="group" aria-label={t("viewer.player")}>
           <button
             type="button"
             className="player-play"
             onClick={() => setPlaying((p) => !p)}
-            aria-label={playing ? "Pausar" : "Reproducir"}
+            aria-label={playing ? t("viewer.pause") : t("viewer.play")}
           >
             {playing ? <Icon d={PATH_PAUSE} /> : <Icon d={PATH_PLAY} filled />}
           </button>
@@ -446,13 +448,13 @@ export default function CellViewer({
             max={Math.max(0, n - 1)}
             value={safeFrame}
             onChange={(e) => seek(Number(e.target.value))}
-            aria-label="fotograma"
-            aria-valuetext={`fotograma ${n === 0 ? 0 : safeFrame + 1} de ${n}, t ${tLabel}`}
+            aria-label={t("viewer.seekLabel")}
+            aria-valuetext={t("viewer.seek", { i: n === 0 ? 0 : safeFrame + 1, n, t: tLabel })}
           />
           <span className="player-time">
-            Tiempo {tLabel} / {totalLabel}
+            {t("viewer.time", { t: tLabel, d: totalLabel })}
           </span>
-          <div className="speed-seg" role="group" aria-label="velocidad">
+          <div className="speed-seg" role="group" aria-label={t("viewer.speedLabel")}>
             {[0.5, 1, 2, 4].map((v) => (
               <button
                 key={v}
@@ -469,19 +471,19 @@ export default function CellViewer({
             type="button"
             className="player-full"
             onClick={toggleFullscreen}
-            aria-label={isFull ? "Salir de pantalla completa" : "Pantalla completa"}
-            title={isFull ? "Salir de pantalla completa" : "Pantalla completa"}
+            aria-label={isFull ? t("viewer.exitFullscreen") : t("viewer.fullscreen")}
+            title={isFull ? t("viewer.exitFullscreen") : t("viewer.fullscreen")}
           >
             <Icon d={isFull ? PATH_UNFULL : PATH_FULL} />
           </button>
         </div>
       </div>
       <p className="viewer-caption">
-        <span className="cap-live">{stats.live} vivas</span> ·{" "}
-        <span className="cap-dead">{stats.dead} muertas</span> · r {stats.radius.toFixed(0)} µm · t {tLabel}
+        <span className="cap-live">{t("viewer.liveN", { n: stats.live })}</span> ·{" "}
+        <span className="cap-dead">{t("viewer.deadN", { n: stats.dead })}</span> · r {stats.radius.toFixed(0)} µm · t {tLabel}
       </p>
       <p className="viewer-src">
-        {data.meta.engine_id} v{data.meta.engine_version} · semilla {data.meta.seed}
+        {t("viewer.source", { engine: data.meta.engine_id, version: data.meta.engine_version, seed: data.meta.seed })}
       </p>
       {showChart && <SeriesChart data={data} frame={safeFrame} onSeek={seek} yMax={yMax} />}
     </div>

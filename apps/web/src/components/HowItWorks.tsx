@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useLocale } from "../i18n";
 
 interface Props {
   open: boolean;
@@ -6,6 +7,7 @@ interface Props {
 }
 
 export default function HowItWorks({ open, onClose }: Props) {
+  const { t } = useLocale();
   const closeRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
@@ -32,26 +34,15 @@ export default function HowItWorks({ open, onClose }: Props) {
         aria-modal="true"
         aria-labelledby="how-title"
       >
-        <h2 id="how-title">Cómo funciona</h2>
+        <h2 id="how-title">{t("how.title")}</h2>
         <ol>
-          <li>
-            <strong>Describe.</strong> Escribes tu hipótesis con tus palabras.
-          </li>
-          <li>
-            <strong>La IA planifica.</strong> El planificador propone dos condiciones
-            comparables (mismo motor, misma semilla).
-          </li>
-          <li>
-            <strong>El motor calcula.</strong> PhysiCell simula cada célula como
-            agente: posiciones reales, nada inventado.
-          </li>
-          <li>
-            <strong>Comparas.</strong> Métricas y conclusión salen de los
-            resúmenes calculados, nunca del chat.
-          </li>
+          <li>{t("how.step1")}</li>
+          <li>{t("how.step2")}</li>
+          <li>{t("how.step3")}</li>
+          <li>{t("how.step4")}</li>
         </ol>
         <button ref={closeRef} type="button" className="modal-close" onClick={onClose}>
-          Entendido
+          {t("how.close")}
         </button>
       </div>
     </div>

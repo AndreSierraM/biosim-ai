@@ -1,7 +1,6 @@
 import type { CellPosition, TrajectoryFile } from "./types";
 
-/** Honest label for the golden preview shown before the first run. */
-export const PREVIEW_LABEL = "Ejemplo visual · no es tu simulación · physicell v1.14.2";
+
 
 interface GoldenFrame {
   t_min: number;
@@ -21,7 +20,10 @@ interface GoldenFixture {
  * existing CellViewer renders real computed positions (never invented).
  * Small screens get the light file (every 3rd frame, ~1/3 of the weight).
  */
-export async function loadPreviewSpheroid(signal?: AbortSignal, light = false): Promise<TrajectoryFile> {
+export async function loadPreviewSpheroid(
+  signal?: AbortSignal,
+  light = false,
+): Promise<TrajectoryFile> {
   const file = light ? "preview-spheroid-light.json" : "preview-spheroid.json";
   const res = await fetch(`${import.meta.env.BASE_URL}${file}`, { signal });
   if (!res.ok) {

@@ -1,3 +1,5 @@
+import { useLocale } from "../i18n";
+
 export interface ExampleChip {
   label: string;
   prompt: string;
@@ -5,29 +7,37 @@ export interface ExampleChip {
   icon: string;
 }
 
-/** Chips fill the prompt; prompts carry the fixture keywords so planning works. */
-export const EXAMPLE_CHIPS: ExampleChip[] = [
-  {
-    label: "Dos condiciones de oxígeno",
-    prompt: "Compara oxygen availability normal vs baja en el esferoide tumoral",
-    icon: "M7 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm10 0a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
-  },
-  {
-    label: "Efecto de un medicamento",
-    prompt: "¿Qué drug dose frena el crecimiento del tumor?",
-    icon: "M10.5 4.5l9 9a4.24 4.24 0 0 1-6 6l-9-9a4.24 4.24 0 0 1 6-6zM8 8l8 8",
-  },
-  {
-    label: "Un tumor en 3D",
-    prompt: "Muestra el esferoide en 3D con oxygen availability normal vs baja",
-    icon: "M12 2l8 4.5v9L12 20l-8-4.5v-9L12 2zm0 0v9m8-4.5L12 11M4 6.5L12 11",
-  },
-  {
-    label: "Menos oxígeno",
-    prompt: "¿Crece menos el tumor con menos oxígeno? oxygen availability baja vs normal",
-    icon: "M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h8",
-  },
-];
+/** Chip icons stay constant; labels/prompts come from the locale dict. */
+const CHIP_ICONS = [
+  "M7 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm10 0a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
+  "M10.5 4.5l9 9a4.24 4.24 0 0 1-6 6l-9-9a4.24 4.24 0 0 1 6-6zM8 8l8 8",
+  "M12 2l8 4.5v9L12 20l-8-4.5v-9L12 2zm0 0v9m8-4.5L12 11M4 6.5L12 11",
+  "M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h8",
+] as const;
+
+type ChipBase = "oxygen" | "drug" | "tumor" | "less";
+const CHIP_BASES: ChipBase[] = ["oxygen", "drug", "tumor", "less"];
+
+type ChipLabelKey =
+  | "chip.oxygen.label"
+  | "chip.drug.label"
+  | "chip.tumor.label"
+  | "chip.less.label";
+type ChipPromptKey =
+  | "chip.oxygen.prompt"
+  | "chip.drug.prompt"
+  | "chip.tumor.prompt"
+  | "chip.less.prompt";
+
+function exampleChips(
+  t: (key: ChipLabelKey | ChipPromptKey) => string,
+): ExampleChip[] {
+  return CHIP_BASES.map((base, i) => ({
+    label: t(`chip.${base}.label` as ChipLabelKey),
+    prompt: t(`chip.${base}.prompt` as ChipPromptKey),
+    icon: CHIP_ICONS[i],
+  }));
+}
 
 interface Props {
   prompt: string;
@@ -38,9 +48,10 @@ interface Props {
 }
 
 export default function PromptBar({ prompt, onPromptChange, onPlan, planning, busy }: Props) {
+  const { t } = useLocale();
   const empty = prompt.trim().length === 0;
   return (
-    <section className="prompt-block" aria-label="describe tu experimento">
+    <section className="prompt-block" aria-label={t("feed.promptBlock")}>
       <form
         className="prompt-pill"
         onSubmit={(e) => {
@@ -49,7 +60,7 @@ export default function PromptBar({ prompt, onPromptChange, onPlan, planning, bu
         }}
       >
         <label className="visually-hidden" htmlFor="prompt-input">
-          Describe tu hipótesis
+          {t("feed.promptLabel")}
         </label>
         <input
           id="prompt-input"
@@ -57,21 +68,21 @@ export default function PromptBar({ prompt, onPromptChange, onPlan, planning, bu
           type="text"
           value={prompt}
           onChange={(e) => onPromptChange(e.target.value)}
-          placeholder="¿Qué pasa si hay menos oxígeno?"
+          placeholder={t("feed.promptPlaceholder")}
           autoComplete="off"
         />
         <button
           type="submit"
           className="prompt-go"
           disabled={busy || empty}
-          aria-label={planning ? "Planificando…" : "Generar plan"}
-          title="Generar plan"
+          aria-label={t("feed.promptSend")}
+          title={t("feed.promptSend")}
         >
           <span aria-hidden="true">{planning ? "…" : "→"}</span>
         </button>
       </form>
-      <div className="prompt-chips" role="group" aria-label="ejemplos">
-        {EXAMPLE_CHIPS.map((chip) => (
+      <div className="prompt-chips" role="group" aria-label={t("feed.examples")}>
+        {exampleChips(t).map((chip) => (
           <button
             key={chip.label}
             type="button"
