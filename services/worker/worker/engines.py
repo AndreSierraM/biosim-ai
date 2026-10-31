@@ -30,11 +30,23 @@ class EngineHandle:
     reason: str = ""
     defaults: dict = field(default_factory=dict)
     _run: Callable | None = None
+    _validate: Callable | None = None
+    _param_specs: Callable | None = None
 
     def run(self, params: dict, seed: int) -> dict:
         if not self.available or self._run is None:
             raise EngineNotAvailable(self.reason or self.engine_id)
         return self._run({**self.defaults, **params}, seed)
+
+    def validate(self, params: dict) -> None:
+        """Server-side range guardrails; no-op when the engine has none."""
+        if self._validate is not None:
+            self._validate({**self.defaults, **params})
+
+    def param_specs(self) -> dict:
+        if self._param_specs is not None:
+            return self._param_specs()
+        return {}
 
 
 def _reference_handle() -> EngineHandle:
@@ -70,7 +82,9 @@ def _physicell_handle() -> EngineHandle:
     spec.loader.exec_module(module)
     adapter = module.PhysiCellAdapter()
     return EngineHandle("physicell", adapter.manifest(), True,
-                        defaults=adapter.default_params(), _run=adapter.run)
+                        defaults=adapter.default_params(), _run=adapter.run,
+                        _validate=adapter.validate,
+                        _param_specs=adapter.param_specs)
 
 
 def get_engine(engine_id: str) -> EngineHandle:

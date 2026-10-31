@@ -3,7 +3,7 @@ import CellViewer from "./viewer/CellViewer";
 import DoseChart from "./viewer/DoseChart";
 import Sidebar, { type View } from "./components/Sidebar";
 import PromptBar from "./components/PromptBar";
-import CopilotPanel, { armSubtitle, type ArmRun } from "./components/CopilotPanel";
+import CopilotPanel, { type ArmRun } from "./components/CopilotPanel";
 import ParamSliders, { type SliderValues } from "./components/ParamSliders";
 import HowItWorks from "./components/HowItWorks";
 import { api, pollRun } from "./api";
@@ -13,7 +13,7 @@ import type { EngineInfo, Job, Plan, TrajectoryFile } from "./types";
 import "./App.css";
 
 const DEFAULT_PROMPT = "Compara oxygen availability normal vs baja en el esferoide tumoral";
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8123";
+const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
 interface SweepRun {
   dose: number;
@@ -53,7 +53,7 @@ function isAbort(e: unknown): boolean {
 export default function App() {
   const [view, setView] = useState<View>("experiment");
   const [engines, setEngines] = useState<EngineInfo[] | null>(null);
-  const [plannerOk, setPlannerOk] = useState<boolean | null>(null);
+  const [plannerBackend, setPlannerBackend] = useState<"fixture" | "live" | null>(null);
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [runs, setRuns] = useState<Record<string, ArmRun>>({});
@@ -93,23 +93,27 @@ export default function App() {
   };
 
   const enginesOk = engines !== null && engines.some((e) => e.available);
-  // Honesto: "live" solo cuando planner Y engines están verificados OK.
+  // Honesto: "live" solo con Meta real; fixture es demo sin llamada a Meta.
   const badgeState =
     error || (engines !== null && !enginesOk)
       ? "offline"
       : engines === null
         ? "connecting"
-        : plannerOk === true
+        : plannerBackend === "live"
           ? "live"
-          : "ready";
+          : plannerBackend === "fixture"
+            ? "demo"
+            : "ready";
   const badgeText =
     badgeState === "live"
-      ? `live · ${plan?.model_version ?? "planner"} + engines`
-      : badgeState === "ready"
-        ? "engines ok · plan to verify AI"
-        : badgeState === "offline"
-          ? "offline"
-          : "connecting…";
+      ? `live Meta · ${plan?.model_version ?? "planner"} + engines`
+      : badgeState === "demo"
+        ? `demo IA · fixture ${plan?.model_version ?? ""} (sin llamada Meta)`
+        : badgeState === "ready"
+          ? "engines ok · plan to verify AI"
+          : badgeState === "offline"
+            ? "offline"
+            : "connecting…";
 
   useEffect(() => {
     api
@@ -117,7 +121,7 @@ export default function App() {
       .then((r) => setEngines(r.engines))
       .catch((e: unknown) => {
         setError(
-          `API unreachable at ${API_BASE} — start it: cd services/api && .venv/bin/python -m uvicorn app.main:app --port 8123 (${err(e)})`,
+          `API unreachable (${API_BASE || "same-origin /v1 via dev proxy"}) — start it: cd services/api && .venv/bin/python -m uvicorn app.main:app --port 8123 (${err(e)})`,
         );
       });
   }, []);
@@ -139,14 +143,17 @@ export default function App() {
     setPlan(null);
     setRuns({});
     setSelectedArm(null);
+    setPlannerBackend(null);
     setBusy("Planning…");
     try {
       const p = await api.plan(prompt);
       setPlan(p);
-      if (p.model_version) setPlannerOk(true);
+      if (p.planner_backend) setPlannerBackend(p.planner_backend);
+      else if (p.model_version === "planner-fixture") setPlannerBackend("fixture");
+      else if (p.model_version) setPlannerBackend("live");
       if (p.validated && p.arms.length > 0) setSelectedArm(p.arms[0].name);
     } catch (e) {
-      if (err(e).toLowerCase().includes("planner")) setPlannerOk(false);
+      if (err(e).toLowerCase().includes("planner")) setPlannerBackend(null);
       setError(err(e));
     } finally {
       setBusy("");
@@ -396,13 +403,13 @@ export default function App() {
   const showPreview = !hasCompletedRun;
   const planning = busy.startsWith("Planning");
   const running = busy.startsWith("Running") || busy.startsWith("Rerunning");
+  /** The copilot panel only earns its space once there is a plan to show. */
+  const showCopilot = planning || plan !== null;
   const physicell = engines?.find((e) => e.engine_id === "physicell");
   const firstTraj =
     Object.values(runs).map((r) => r.traj).find((t) => !!t) ??
     sweep.map((s) => s.traj).find((t) => !!t) ??
     null;
-  const footerEngine = firstTraj?.meta.engine_id ?? physicell?.engine_id ?? "—";
-  const footerVer = firstTraj?.meta.engine_version ?? physicell?.engine_version ?? "?";
 
   const armNames = plan?.validated ? plan.arms.map((a) => a.name) : [];
   const activeArm = selectedArm && armNames.includes(selectedArm) ? selectedArm : armNames[0] ?? null;
@@ -426,8 +433,12 @@ export default function App() {
 
   return (
     <div className="shell">
-      <Sidebar view={view} onNav={setView} />
-      <div className="main">
+      <Sidebar view={view} onNav={setView}>
+        {view === "experiment" && (
+          <ParamSliders values={sliders} onChange={setSliders} disabled={!!busy} locks={sliderLocks} />
+        )}
+      </Sidebar>
+      <div className={view === "experiment" ? "main is-feed" : "main"}>
         <header className="topbar">
           <span className={`status is-${badgeState}`}>
             <span className="dot" aria-hidden="true" />
@@ -440,13 +451,10 @@ export default function App() {
 
         {view === "experiment" && (
           <>
-            <PromptBar
-              prompt={prompt}
-              onPromptChange={setPrompt}
-              onPlan={doPlan}
-              planning={planning}
-              busy={!!busy}
-            />
+            <div className="feed">
+            <div className="feed-head">
+              <h2 className="prompt-title">¿Qué quieres descubrir?</h2>
+            </div>
 
             {error && <p className="error-banner" role="alert">{error}</p>}
             {busy && (
@@ -467,9 +475,7 @@ export default function App() {
               </section>
             )}
 
-            <ParamSliders values={sliders} onChange={setSliders} disabled={!!busy} locks={sliderLocks} />
-
-            <div className="stage-grid">
+            <div className={showCopilot ? "stage-grid" : "stage-grid is-solo"}>
               <div className="stage-main">
                 <section className="viewer-card" aria-label="simulación 3D">
                   {armNames.length > 1 && (
@@ -518,7 +524,7 @@ export default function App() {
 
                 {conclusion && (
                   <section className="conclusion-card" aria-label="conclusión de BioSim AI">
-                    <span className="conclusion-icon" aria-hidden="true">💡</span>
+                    <span className="conclusion-icon" aria-hidden="true">✦</span>
                     <div>
                       <h2>Conclusión de BioSim AI</h2>
                       <p>{conclusion}</p>
@@ -597,6 +603,7 @@ export default function App() {
                 )}
               </div>
 
+              {showCopilot && (
               <CopilotPanel
                 plan={plan}
                 runs={runs}
@@ -607,6 +614,18 @@ export default function App() {
                 onRunAll={doRunAll}
                 onRerun={doRerun}
                 onExport={exportArm}
+              />
+            )}
+            </div>
+            </div>
+
+            <div className="composer">
+              <PromptBar
+                prompt={prompt}
+                onPromptChange={setPrompt}
+                onPlan={doPlan}
+                planning={planning}
+                busy={!!busy}
               />
             </div>
           </>
@@ -701,12 +720,6 @@ export default function App() {
           </section>
         )}
 
-        <footer>
-          Plan by {plan?.model_version ?? "—"} · Positions computed by {footerEngine} v{footerVer} · No trajectory is ever invented
-          {plan?.validated && (
-            <> · {plan.arms.map((a) => `${a.name}: ${armSubtitle(plan, a.name)}`).join(" | ")}</>
-          )}
-        </footer>
       </div>
       <HowItWorks open={howOpen} onClose={() => setHowOpen(false)} />
     </div>

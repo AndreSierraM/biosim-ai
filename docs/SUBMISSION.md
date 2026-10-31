@@ -15,8 +15,10 @@ Meta AI acts as a constrained scientific experiment planner and interpreter, not
 ## Proof points needed before finalizing submission
 - Real Meta Model API calls with model ID and schema-valid planning examples.
 - PhysiCell spheroid dose-response: control vs treated runs plus a graded dose
-  ladder (0 → 137 live, 0.3 → 87, 1.0 → 22, 3.0 → 8, 10 → 2 uM), with controlled
-  assumptions and an interpolated assay-scale IC50.
+  ladder, measured seed 7 engine 1.14.2 (0 → 115 live, 0.3 → 93, 1.0 → 41,
+  10 → 4 uM; strictly decreasing, high dose ≈3% of control), with controlled
+  assumptions. No measured IC50 yet: any IC50 shown is an assay-scale
+  interpolation, not a fitted experimental value.
 - Recording of live prompt-to-plan-to-sweep-to-3D experience.
 - Reproducibility package and scientific benchmark.
 - Source code and deployed working URL.

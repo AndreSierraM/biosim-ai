@@ -32,8 +32,23 @@ DEFAULTS = {
     "max_time_min": 4320.0,
     "report_interval_min": 60.0,
     "initial_cells": 12,
-    "cell_radius_um": 10.0,
 }
+
+# Canonical parameter guardrails: (min, max, unit, description).
+# cell_radius_um is deliberately ABSENT: the assay binary fixes the cell
+# radius in its cell definition, so accepting it would silently ignore
+# the request. Asking for it must fail loudly (see validate()).
+PARAM_SPECS = {
+    "oxygen": (0.0, 100.0, "mmHg", "sustained boundary oxygen"),
+    "drug_dose": (0.0, 100.0, "uM", "sustained boundary drug dose"),
+    "drug_ec50": (0.0, 100.0, "uM", "Hill EC50 of drug apoptosis"),
+    "drug_kill_max": (0.0, 0.1, "1/min", "max Hill apoptosis rate"),
+    "drug_uptake": (0.0, 1000.0, "1/min", "per-cell drug uptake rate"),
+    "max_time_min": (60.0, 10080.0, "min", "simulated duration"),
+    "report_interval_min": (5.0, 1440.0, "min", "frame interval"),
+    "initial_cells": (1, 500, "none", "seeded cell count"),
+}
+MAX_FRAMES = 500
 
 
 def _set_text(root: ET.Element, path: str, value) -> None:
@@ -49,6 +64,38 @@ def _validate_finite(params: dict, seed: int) -> None:
             raise ValueError(f"param {key!r} must be finite, got {value!r}")
     if isinstance(seed, (int, float)) and not math.isfinite(float(seed)):
         raise ValueError(f"seed must be finite, got {seed!r}")
+
+
+def validate_params(params: dict) -> None:
+    """Server-side guardrails: every value finite and inside PARAM_SPECS.
+
+    Raises ValueError with an honest message (surfaces as HTTP 400, never
+    a silent mis-simulation). Unknown keys are rejected by the caller.
+    """
+    if "cell_radius_um" in params:
+        raise ValueError(
+            "cell_radius_um is not supported by the spheroid assay: "
+            "the pinned binary fixes the cell radius in its cell definition, "
+            "so any value would be silently ignored")
+    for key, (lo, hi, unit, _desc) in PARAM_SPECS.items():
+        if key not in params:
+            continue
+        value = params[key]
+        if not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+            raise ValueError(f"param {key!r} must be a finite number, got {value!r}")
+        v = float(value)
+        if key == "initial_cells" and (not float(value).is_integer()):
+            raise ValueError(f"param 'initial_cells' must be an integer, got {value!r}")
+        if not (lo <= v <= hi) or (key in ("oxygen", "drug_ec50") and v <= 0):
+            raise ValueError(
+                f"param {key!r}={value!r} {unit} out of range "
+                f"[{lo}, {hi}] {unit}")
+    if "max_time_min" in params and "report_interval_min" in params:
+        frames = float(params["max_time_min"]) / float(params["report_interval_min"])
+        if frames > MAX_FRAMES:
+            raise ValueError(
+                f"max_time_min/report_interval_min yields {frames:.0f} frames, "
+                f"over the {MAX_FRAMES} cap (widen the interval or shorten the run)")
 
 
 def _render_config(params: dict, seed: int, outdir: Path, dest: Path) -> None:
@@ -216,12 +263,20 @@ class PhysiCellAdapter:
     def default_params(self) -> dict:
         return dict(DEFAULTS)
 
+    def param_specs(self) -> dict:
+        return {k: {"min": lo, "max": hi, "unit": unit, "description": desc}
+                for k, (lo, hi, unit, desc) in PARAM_SPECS.items()}
+
+    def validate(self, params: dict) -> None:
+        validate_params(params)
+
     def run(self, params: dict, seed: int) -> dict:
         if not BINARY.exists():
             raise RuntimeError("PhysiCell binary missing; run engines/physicell/setup.sh")
         missing = [k for k in DEFAULTS if k not in params]
         if missing:
             raise RuntimeError(f"missing params: {missing}")
+        validate_params(params)
         rundir = Path(tempfile.mkdtemp(prefix="physicell-run-"))
         try:
             outdir = rundir / "output"
@@ -266,9 +321,10 @@ class PhysiCellAdapter:
                     "assumptions": [
                         "Agent cells; no membrane deformation.",
                         "Oxygen-driven necrosis below 8 mmHg.",
+                        "Oxygen-gated proliferation: G0/G1 exit scaled by "
+                        "o2/(o2+8mmHg), hypoxic cells linger before dividing.",
                         "Drug: sustained boundary dose, diffusion/uptake gradient, "
                         "Hill apoptosis kill_max*dose/(dose+EC50) on all live cells.",
-                        "Proliferation unscaled by oxygen (follow-up).",
                         "Single-threaded deterministic run.",
                     ],
                 },

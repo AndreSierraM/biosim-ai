@@ -41,10 +41,6 @@ export default function PromptBar({ prompt, onPromptChange, onPlan, planning, bu
   const empty = prompt.trim().length === 0;
   return (
     <section className="prompt-block" aria-label="describe tu experimento">
-      <h2 className="prompt-title">¿Qué quieres descubrir?</h2>
-      <p className="prompt-sub">
-        Describe con tus palabras. Yo creo el experimento, lo simulo y te muestro el resultado.
-      </p>
       <form
         className="prompt-pill"
         onSubmit={(e) => {

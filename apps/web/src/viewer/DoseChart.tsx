@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { niceCeil } from "./SeriesChart";
 
 const W = 640;
 const H = 190;
@@ -42,7 +43,7 @@ export function ic50(points: DosePoint[]): number | null {
 export default function DoseChart({ points, selected, onSelect }: Props) {
   const sorted = useMemo(() => [...points].sort((p, q) => p.dose - q.dose), [points]);
   if (sorted.length === 0) return null;
-  const maxY = Math.max(1, ...sorted.map((s) => s.live));
+  const maxY = niceCeil(Math.max(1, ...sorted.map((s) => s.live)));
   const n = sorted.length;
   const x = (i: number) => (n === 1 ? W / 2 : PAD + (i / (n - 1)) * (W - PAD - 16));
   const y = (v: number) => H - PAD - (v / (maxY * 1.1)) * (H - PAD - 14);

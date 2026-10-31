@@ -120,11 +120,13 @@ export default function CopilotPanel({
         <span className={trajs.length > 0 ? "results-dot is-on" : "results-dot"} aria-hidden="true" />
         Resultados listos
       </h3>
-      <p className="results-sub">
-        {trajs.length > 0
-          ? "Aquí puedes ver lo que pasó y comparar las condiciones."
-          : "Cuando termine el run verás aquí la comparativa."}
-      </p>
+      {plan !== null || trajs.length > 0 ? (
+        <p className="results-sub">
+          {trajs.length > 0
+            ? "Aquí puedes ver lo que pasó y comparar las condiciones."
+            : "Cuando termine el run verás aquí la comparativa."}
+        </p>
+      ) : null}
 
       {plan?.validated && (
         <button
@@ -191,7 +193,7 @@ export default function CopilotPanel({
       )}
       {!plan && !planning && (
         <p className="copilot-note">
-          Describe tu hipótesis arriba y pulsa → para generar el plan.
+          Describe tu hipótesis abajo y pulsa → para generar el plan.
         </p>
       )}
     </aside>

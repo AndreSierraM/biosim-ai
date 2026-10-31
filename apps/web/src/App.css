@@ -45,9 +45,9 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   background:
-    radial-gradient(560px 380px at 8% 4%, rgba(196, 181, 253, 0.35), transparent 70%),
-    radial-gradient(640px 420px at 96% 30%, rgba(147, 197, 253, 0.3), transparent 70%),
-    radial-gradient(700px 480px at 30% 100%, rgba(249, 168, 212, 0.22), transparent 70%),
+    radial-gradient(560px 380px at 8% 4%, rgba(196, 181, 253, 0.18), transparent 70%),
+    radial-gradient(640px 420px at 96% 30%, rgba(147, 197, 253, 0.16), transparent 70%),
+    radial-gradient(700px 480px at 30% 100%, rgba(249, 168, 212, 0.12), transparent 70%),
     var(--bg);
   background-attachment: fixed;
 }
@@ -70,7 +70,11 @@ button {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 150ms ease-out, border-color 150ms ease-out, opacity 150ms ease-out;
+  transition: background-color 150ms ease-out, border-color 150ms ease-out, opacity 150ms ease-out, transform 100ms ease-out;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.96);
 }
 
 button:hover:not(:disabled) {
@@ -106,7 +110,7 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   display: grid;
   grid-template-columns: 224px minmax(0, 1fr);
   gap: 0;
-  max-width: 1560px;
+  max-width: 1760px;
   margin: 0 auto;
   min-height: 100vh;
   align-items: start;
@@ -130,6 +134,7 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   flex-direction: column;
   gap: 20px;
   padding: 24px 16px;
+  overflow-y: auto;
 }
 
 .side-brand {
@@ -230,7 +235,8 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  font-size: 15px;
+  font-size: 22px;
+  font-weight: 800;
   color: var(--primary-dark);
   background: radial-gradient(circle at 35% 30%, #ede9fe, #c4b5fd);
 }
@@ -245,6 +251,25 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 
 .side-help p span {
   color: var(--muted);
+}
+
+/* Assay params live in the sidebar: single column, compact card. */
+.sidebar .params-card {
+  padding: 14px 16px;
+  flex: none;
+}
+
+.sidebar .params-grid {
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.sidebar .param-top {
+  gap: 6px;
+}
+
+.sidebar .param-top output {
+  white-space: nowrap;
 }
 
 /* ---------- Topbar ---------- */
@@ -265,9 +290,13 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   color: var(--muted);
   background: var(--card);
   border-radius: var(--r-pill);
-  padding: 6px 14px;
+  padding: 5px 12px;
   box-shadow: var(--shadow-1);
   font-variant-numeric: tabular-nums;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status .dot {
@@ -280,6 +309,8 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 
 .status.is-live { color: var(--green); }
 .status.is-live .dot { background: var(--green); }
+.status.is-demo { color: var(--amber, #b45309); }
+.status.is-demo .dot { background: var(--amber, #b45309); }
 .status.is-ready .dot { background: var(--green); opacity: 0.55; }
 .status.is-offline { color: var(--red); }
 .status.is-offline .dot { background: var(--red); }
@@ -294,10 +325,11 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   border: 0;
   border-radius: var(--r-pill);
   box-shadow: var(--shadow-1);
-  padding: 10px 18px;
+  padding: 8px 16px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  flex: none;
 }
 
 .how-btn span {
@@ -315,22 +347,20 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 /* ---------- Prompt block ---------- */
 
 .prompt-block {
-  text-align: center;
-  max-width: 860px;
-  margin: 8px auto 0;
   width: 100%;
+}
+
+.feed-head {
+  margin-top: 2px;
+}
+
+.feed-head .prompt-title {
+  font-size: 20px;
 }
 
 .prompt-title {
   margin: 0;
-  font-size: clamp(30px, 4vw, 44px);
   font-weight: 800;
-}
-
-.prompt-sub {
-  margin: 6px 0 18px;
-  color: var(--muted);
-  font-size: 15px;
 }
 
 .prompt-pill {
@@ -384,10 +414,51 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 
 .prompt-chips {
   display: flex;
-  gap: 10px;
-  justify-content: center;
-  flex-wrap: wrap;
-  margin-top: 14px;
+  gap: 8px;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  margin-top: 10px;
+  padding-bottom: 4px;
+}
+
+.prompt-chips .chip {
+  flex: none;
+}
+
+/* Feed layout: status + scrolling results + docked composer + footer in 100vh. */
+.main.is-feed {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.main.is-feed > .topbar,
+.main.is-feed > .composer {
+  flex: none;
+}
+
+.feed {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Docked composer: ChatGPT-style input always visible below the feed. */
+.composer {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-2);
+  padding: 12px 12px 8px;
+}
+
+.composer .prompt-pill {
+  box-shadow: none;
+  border: 1px solid var(--line);
+  padding: 6px 6px 6px 18px;
 }
 
 .chip {
@@ -550,6 +621,10 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   align-items: start;
 }
 
+.stage-grid.is-solo {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .stage-main {
   min-width: 0;
   display: flex;
@@ -594,7 +669,7 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 
 .canvas-wrap {
   position: relative;
-  height: clamp(340px, 52vh, 520px);
+  height: clamp(360px, 60vh, 640px);
   border-radius: 14px;
   overflow: hidden;
   background: #e9edfb;
@@ -689,11 +764,6 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   color: var(--primary-dark);
 }
 
-.tool-icon {
-  font-size: 16px;
-  line-height: 1.2;
-}
-
 .tool-svg {
   display: block;
 }
@@ -716,8 +786,8 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 
 .player-play {
   flex: none;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: 0;
   background: var(--primary-soft);
@@ -750,8 +820,8 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 
 .player-full {
   flex: none;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: 0;
   background: transparent;
@@ -803,8 +873,15 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 
 .viewer-caption {
   margin: 0;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.viewer-src {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--faint);
   font-variant-numeric: tabular-nums;
 }
 
@@ -871,25 +948,6 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   fill: var(--red);
 }
 
-.chart .legend-live {
-  fill: var(--primary);
-}
-
-.chart .legend-dead {
-  fill: var(--red);
-}
-
-.chart .legend-line-live {
-  stroke: var(--primary);
-  stroke-width: 2;
-}
-
-.chart .legend-line-dead {
-  stroke: var(--red);
-  stroke-width: 2;
-  stroke-dasharray: 5 4;
-}
-
 .chart .axis {
   fill: var(--muted);
   font-size: 12px;
@@ -935,7 +993,7 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 .copilot {
   background: var(--card);
   border-radius: var(--r-card);
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--shadow-1);
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -1049,8 +1107,8 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 }
 
 .conditions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
 }
 
@@ -1130,7 +1188,6 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   margin: 0;
   font-size: 12px;
   color: var(--muted);
-  min-height: 88px;
 }
 
 .condition-actions {
@@ -1142,8 +1199,8 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 
 .condition-actions button {
   flex: 1;
-  padding: 7px 8px;
-  font-size: 11px;
+  padding: 8px;
+  font-size: 12px;
   border-radius: 10px;
   white-space: nowrap;
 }
@@ -1170,9 +1227,10 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 }
 
 .conclusion-icon {
-  font-size: 26px;
+  font-size: 24px;
   line-height: 1.2;
   flex: none;
+  color: var(--primary);
 }
 
 .conclusion-card h2 {
@@ -1390,17 +1448,6 @@ input.field:focus {
   border: 0;
 }
 
-/* ---------- Footer ---------- */
-
-footer {
-  margin-top: 8px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
 /* ---------- Responsive ---------- */
 
 @media (max-width: 1180px) {
@@ -1409,9 +1456,6 @@ footer {
   }
   .copilot {
     position: static;
-  }
-  .conditions {
-    grid-template-columns: 1fr 1fr;
   }
 }
 
@@ -1435,8 +1479,20 @@ footer {
   .side-help {
     display: none;
   }
+  .sidebar .params-card {
+    flex: 1 1 100%;
+  }
+  .topbar {
+    flex-wrap: wrap;
+  }
+  .status {
+    white-space: normal;
+  }
   .main {
     padding: 12px 16px 24px;
+  }
+  .composer {
+    padding: 10px 10px 6px;
   }
   .params-grid {
     grid-template-columns: 1fr;
@@ -1456,23 +1512,14 @@ footer {
   }
 }
 
-@media (max-width: 560px) {
-  .conditions {
-    grid-template-columns: 1fr;
-  }
-  .condition-pending {
-    min-height: 0;
-  }
-  .prompt-title {
-    font-size: 30px;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .spinner, .status.is-connecting .dot, .viewer-skeleton {
     animation: none;
   }
   button, select, input, textarea {
     transition: none;
+  }
+  button:active:not(:disabled) {
+    transform: none;
   }
 }

@@ -20,6 +20,7 @@ class RunSubmit(BaseModel):
     engine: StrictStr = Field(min_length=1)
     params: dict = Field(default_factory=dict)
     seed: StrictInt = Field(default=7, ge=SEED_MIN, le=SEED_MAX)
+    idempotency_key: StrictStr | None = Field(default=None, min_length=1, max_length=128)
 
 
 def _request_error(exc: ValidationError) -> str:
@@ -33,7 +34,7 @@ def _request_error(exc: ValidationError) -> str:
 _REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(_REPO / "services" / "worker"))
 
-from worker.engines import EngineNotAvailable, UnknownEngine, get_engine, list_engines  # noqa: E402
+from worker.engines import UnknownEngine, get_engine, list_engines  # noqa: E402
 from worker.jobs import JobStore, kill_proc  # noqa: E402
 from worker.runner import execute  # noqa: E402
 
@@ -61,6 +62,10 @@ def submit_run(body: dict):
         raise HTTPException(400, str(e))
     if not handle.available:
         raise HTTPException(503, handle.reason or f"engine {req.engine} unavailable")
+    try:
+        handle.validate(req.params)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     unknown = sorted(k for k in req.params if k not in handle.defaults)
     if unknown:
         raise HTTPException(
@@ -69,7 +74,22 @@ def submit_run(body: dict):
             f"known: {sorted(handle.defaults)}",
         )
     store = _store()
-    job = store.create(req.engine, req.params, req.seed)
+    if req.idempotency_key is not None:
+        conflict = store.key_conflict(req.params, req.seed, req.engine,
+                                      req.idempotency_key)
+        if conflict is not None:
+            raise HTTPException(
+                422,
+                f"idempotency key already used for a different run "
+                f"({conflict['id']}: engine={conflict['engine']} "
+                f"seed={conflict['seed']})",
+            )
+        existing = store.find_for_key(req.engine, req.params, req.seed,
+                                      req.idempotency_key)
+        if existing is not None:
+            return {**existing, "deduplicated": True}
+    job = store.create(req.engine, req.params, req.seed,
+                       idempotency_key=req.idempotency_key)
     fut = _POOL.submit(execute, store, job["id"])
     with _FUTURES_LOCK:
         _FUTURES[job["id"]] = fut

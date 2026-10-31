@@ -103,6 +103,46 @@ def test_bad_dose_refuses():
     assert plan["runs_created"] == []
 
 
+def test_custom_builds_single_arm_with_units_and_seed():
+    text = json.dumps({"kind": "spheroid_custom", "engine": "physicell",
+                       "parameters": {"oxygen": 25.0, "drug_dose": 2.0,
+                                      "initial_cells": 20,
+                                      "max_time_min": 1440.0,
+                                      "report_interval_min": 60.0},
+                       "seed": 42})
+    plan = plan_prompt("custom assay with moderate oxygen and some drug",
+                       FakeClient([text]), ["physicell"])
+    assert plan["validated"] is True, plan
+    assert plan["runs_created"] == []
+    assert [a["name"] for a in plan["arms"]] == ["custom"]
+    spec = plan["arms"][0]["spec"]
+    assert spec["seed"] == 42
+    assert spec["parameters"]["oxygen"] == {"value": 25.0, "unit": "mmHg"}
+    assert spec["parameters"]["drug_dose"] == {"value": 2.0, "unit": "uM"}
+    assert spec["parameters"]["initial_cells"] == {"value": 20, "unit": "none"}
+    assert spec["entities"] == [{"id": "cells", "kind": "cell", "count": 20}]
+    assert spec["parameters"]["max_time_min"]["unit"] == "min"
+
+
+def test_custom_rejects_cell_radius():
+    text = json.dumps({"kind": "spheroid_custom", "engine": "physicell",
+                       "parameters": {"cell_radius_um": 15.0}})
+    plan = plan_prompt("custom assay", FakeClient([text, text]), ["physicell"])
+    assert plan["validated"] is False
+    assert "cell_radius_um" in plan["refusal"]["reason"]
+    assert plan["runs_created"] == []
+
+
+def test_custom_out_of_range_then_repair():
+    bad = json.dumps({"kind": "spheroid_custom", "engine": "physicell",
+                      "parameters": {"oxygen": 500.0}})
+    good = json.dumps({"kind": "spheroid_custom", "engine": "physicell",
+                       "parameters": {"oxygen": 25.0}})
+    plan = plan_prompt("custom assay", FakeClient([bad, good]), ["physicell"])
+    assert plan["validated"] is True, plan
+    assert plan["arms"][0]["spec"]["parameters"]["oxygen"]["value"] == 25.0
+
+
 def main() -> int:
     test_compare_builds_two_validated_arms()
     test_unsupported_refuses_without_runs()
@@ -111,7 +151,10 @@ def main() -> int:
     test_missing_physicell_refuses()
     test_drug_compare_builds_control_treated_arms()
     test_bad_dose_refuses()
-    print("PASS test_planner (7 tests)")
+    test_custom_builds_single_arm_with_units_and_seed()
+    test_custom_rejects_cell_radius()
+    test_custom_out_of_range_then_repair()
+    print("PASS test_planner (10 tests)")
     return 0
 
 

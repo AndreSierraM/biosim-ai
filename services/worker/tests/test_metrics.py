@@ -62,10 +62,10 @@ def test_golden_dose_1():
     golden = json.loads(GOLDEN.read_text())
     frames, summary = golden["frames"], golden["summary"]
     s = summarize_frames(frames)
-    assert summary["final_live"] == 22 and summary["final_dead"] == 9
-    assert s["final_live_fraction"] == round(22 / 31, 6)
-    assert s["final_dead_fraction"] == round(9 / 31, 6)
-    assert s["peak_live"] == 27 and s["peak_live_t_min"] == 3540.0
+    assert summary["final_live"] == 41 and summary["final_dead"] == 3
+    assert s["final_live_fraction"] == round(41 / 44, 6)
+    assert s["final_dead_fraction"] == round(3 / 44, 6)
+    assert s["peak_live"] == 41 and s["peak_live_t_min"] == 4320.0
     assert s["t50_min"] is None  # growth-only: live never halves from peak
 
 

@@ -4,7 +4,7 @@
 
 BioSim AI is an open-source AI-native scientific workbench: describe a cellular experiment in natural language, review its validated parameters, run a real numerical solver, inspect 3D trajectories and compare measured outcomes.
 
-> **Implementation status (2026-10-26): planning, specifications and GitHub issues are published on main. The React app, Meta Model API adapter and PhysiCell execution pipeline have NOT been implemented or verified yet.** Do not claim a working prototype, benchmark or submission before actual evidence exists.
+> **Implementation status (2026-10-28): prompt → validated plan → pinned PhysiCell 1.14.2 run → 3D + charts works end-to-end (acceptance 12/12, planner bench 10/10 offline). Measured dose ladder seed 7: 0→115, 0.3→93, 1.0→41, 10→4 live cells. Live Meta Model API calls NOT yet verified (planner runs on a deterministic fixture until a key is provisioned); no submission made.** Do not claim a working prototype, benchmark or submission before actual evidence exists.
 
 ## Meta hackathon focus
 
@@ -24,12 +24,12 @@ Proposed theme **Push the Frontier**, proposed category **Indie Developer** (sub
 - [Security boundaries](docs/SECURITY.md)
 - [GitHub issue tracker](https://github.com/AndreSierraM/biosim-ai/issues)
 
-## Architecture target (not yet implemented)
+## Architecture (shipped, except Meta live calls)
 
 - React + TypeScript + React Three Fiber for chat, input validation and trajectory visualization.
-- FastAPI + Pydantic with a versioned ExperimentSpec and engine capability manifest.
-- Meta Model API for experiment planning and explanation, subject to verified account/model access.
-- Isolated PhysiCell worker producing authentic cell-center trajectories and numerical outputs.
+- FastAPI + Pydantic with a versioned ExperimentSpec and engine capability manifest (`GET /v1/tools`).
+- Meta Model API adapter implemented with model/request/token/latency provenance; live calls pending verified account/model access (fixture until then).
+- Pinned PhysiCell 1.14.2 worker producing authentic cell-center trajectories and numerical outputs.
 - Hashes, seed, units, solver version, model assumptions and original output in each reproducibility bundle.
 
 Morpheus, SOFA and OpenMM are independent longer-term adapters, **not required for the hackathon**. An agent-based spherical cell model must not be presented as a deformable-membrane finite element simulation.

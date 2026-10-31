@@ -1,8 +1,7 @@
 import type { CellPosition, TrajectoryFile } from "./types";
 
 /** Honest label for the golden preview shown before the first run. */
-export const PREVIEW_LABEL =
-  "Preview · computed by physicell v1.14.2 · seed 7 · Run to compute yours";
+export const PREVIEW_LABEL = "Preview · physicell v1.14.2 · seed 7";
 
 interface GoldenFrame {
   t_min: number;
@@ -28,22 +27,17 @@ export async function loadPreviewSpheroid(signal?: AbortSignal): Promise<Traject
   }
   const g = (await res.json()) as GoldenFixture;
   const lastT = g.frames.length > 0 ? g.frames[g.frames.length - 1].t_min : 0;
+  const frameEvery = g.frames.length > 1 ? lastT / (g.frames.length - 1) : 1;
   return {
     meta: {
       engine_id: "physicell",
       engine_version: "1.14.2",
       seed: g.seed,
-      units: { length: "µm", time: "min" },
-      dt_min: 1,
+      units: { length: "um", time: "min" },
+      dt_min: 0.1,
       duration_min: lastT,
-      frame_every: 1,
-      params: {
-        cell_radius_um: g.params.cell_radius_um,
-        adhesion: 0,
-        dt_min: 1,
-        separate_force: 0,
-        noise_sigma: 0,
-      },
+      frame_every: frameEvery,
+      params: { ...g.params },
       assumptions: [
         "Golden preview trajectory (physicell v1.14.2, seed 7). Run to compute yours.",
       ],

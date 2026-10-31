@@ -84,7 +84,8 @@ class JobStore:
         _validate_job_id(job_id)
         return self.root / job_id / "job.json"
 
-    def create(self, engine: str, params: dict, seed: int, model_version=None) -> dict:
+    def create(self, engine: str, params: dict, seed: int, model_version=None,
+               idempotency_key: str | None = None, provenance: dict | None = None) -> dict:
         if not isinstance(params, dict):
             raise TypeError("params must be a dict")
         job = {
@@ -93,6 +94,8 @@ class JobStore:
             "params": params,
             "seed": seed,
             "model_version": model_version,
+            "idempotency_key": idempotency_key,
+            "provenance": provenance,
             "state": "queued",
             "created_at": _now(),
             "updated_at": _now(),
@@ -128,6 +131,36 @@ class JobStore:
         jobs = [json.loads(p.read_text()) for p in sorted(self.root.glob("*/job.json"))]
         jobs.sort(key=lambda j: j["created_at"])
         return jobs
+
+    def find_for_key(self, engine: str, params: dict, seed: int,
+                     idempotency_key: str) -> dict | None:
+        """Newest non-failed job with identical key+engine+params+seed, if any.
+
+        Powers idempotent submit: retrying with the same key returns the
+        existing job instead of burning solver time. Without a key every
+        submit creates a fresh run (reproducibility proofs stay honest).
+        """
+        best: dict | None = None
+        for job in self.list():
+            if (job.get("state") not in ("failed",)
+                    and job.get("idempotency_key") == idempotency_key
+                    and job.get("engine") == engine
+                    and job.get("seed") == seed
+                    and job.get("params") == params):
+                if best is None or job["created_at"] > best["created_at"]:
+                    best = job
+        return best
+
+    def key_conflict(self, params: dict, seed: int, engine: str,
+                     idempotency_key: str) -> dict | None:
+        """A job reusing the key for different engine/params/seed, if any."""
+        for job in self.list():
+            if (job.get("idempotency_key") == idempotency_key
+                    and (job.get("engine") != engine
+                         or job.get("seed") != seed
+                         or job.get("params") != params)):
+                return job
+        return None
 
     def trajectory_path(self, job_id: str) -> Path:
         _validate_job_id(job_id)

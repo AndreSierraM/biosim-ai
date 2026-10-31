@@ -35,7 +35,6 @@ function Icon({ d, filled = false }: { d: string; filled?: boolean }) {
   );
 }
 
-const PATH_CUBE = "M12 2l8 4.5v9L12 20l-8-4.5v-9L12 2zm0 0v9m8-4.5L12 11M4 6.5L12 11";
 const PATH_ROTATE = "M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5";
 const PATH_ZOOM = "M11 17a6 6 0 1 0 0-12 6 6 0 0 0 0 12zm5 0l4 4M8.5 11h5M11 8.5v5";
 const PATH_EYE = "M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6zm10 2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z";
@@ -138,7 +137,9 @@ export default function CellViewer({
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
-    const radius = data.meta.params.cell_radius_um;
+    // Fixed assay cell radius: XML volume 4188.79 um^3 => r ~= 10 um.
+    // cell_radius_um is rejected by the API (never silently ignored).
+    const radius = 10;
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(BG);
@@ -362,10 +363,6 @@ export default function CellViewer({
       >
         {badge && <div className="viewer-badge">{badge}</div>}
         <div className="viewer-toolbar" role="group" aria-label="herramientas de vista">
-          <button type="button" className="tool is-on" aria-pressed="true" title="Vista 3D">
-            <Icon d={PATH_CUBE} />
-            3D
-          </button>
           <button
             type="button"
             className={spin ? "tool is-on" : "tool"}
@@ -439,9 +436,11 @@ export default function CellViewer({
         </div>
       </div>
       <p className="viewer-caption">
-        Calculado por {data.meta.engine_id} v{data.meta.engine_version} · semilla {data.meta.seed} ·{" "}
         <span className="cap-live">{stats.live} vivas</span> ·{" "}
         <span className="cap-dead">{stats.dead} muertas</span> · r {stats.radius.toFixed(0)} µm · t {tLabel}
+      </p>
+      <p className="viewer-src">
+        {data.meta.engine_id} v{data.meta.engine_version} · semilla {data.meta.seed}
       </p>
       {showChart && <SeriesChart data={data} frame={safeFrame} onSeek={seek} yMax={yMax} />}
     </div>

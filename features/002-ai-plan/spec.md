@@ -18,4 +18,24 @@ Scenario: Impossible request is refused honestly
   When the assistant plans the experiment
   Then no experiment runs
   And the researcher learns why the engines cannot do it
+
+Scenario: Custom assay uses any supported parameter combination
+  Given a researcher asks for a spheroid with moderate oxygen and a custom seed
+  When the assistant plans the experiment
+  Then the plan validates with a single custom arm
+  And every quantity carries explicit units
+  And the arm seed matches the request
+  And no runs are created by planning
+
+Scenario: Unsupported parameter is refused honestly
+  Given a researcher asks to vary the cell radius
+  When the assistant plans the experiment
+  Then no experiment runs
+  And the researcher learns the assay fixes the cell radius
+
+Scenario: AI discovers capabilities before planning
+  Given the assistant needs to plan an unfamiliar assay
+  When it lists the allowlisted tools
+  Then it learns every engine with parameter ranges, units and limits
+  And it learns planning never runs anything
 ```

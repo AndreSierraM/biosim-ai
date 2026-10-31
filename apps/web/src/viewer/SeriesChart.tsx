@@ -5,6 +5,14 @@ const W = 640;
 const H = 150;
 const PAD = 34;
 
+/** Round a y-axis ceiling to 1/2/2.5/5·10ⁿ so ticks read clean (data untouched). */
+export function niceCeil(v: number): number {
+  if (v <= 0) return 1;
+  const p = 10 ** Math.floor(Math.log10(v));
+  for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= v) return m * p;
+  return 10 * p;
+}
+
 interface Props {
   data: TrajectoryFile;
   frame: number;
@@ -27,7 +35,7 @@ export default function SeriesChart({ data, frame, onSeek, yMax }: Props) {
     [data],
   );
   const dataMax = Math.max(1, ...series.map((s) => s.live + s.dead));
-  const maxY = Math.max(1, yMax ?? dataMax);
+  const maxY = niceCeil(Math.max(1, yMax ?? dataMax));
   const x = (t: number) => PAD + (t / safeMaxT) * (W - PAD - 12);
   const y = (v: number) => H - PAD - (v / (maxY * 1.05)) * (H - PAD - 10);
   const line = (pick: (s: (typeof series)[number]) => number) =>
@@ -101,21 +109,10 @@ export default function SeriesChart({ data, frame, onSeek, yMax }: Props) {
         {fmtT(maxT)} {useDays ? "" : "min"}
       </text>
       <text x={PAD} y={y(maxY) + 4} className="axis">
-        {maxY} cells
+        {fmtY(maxY)}
       </text>
       <text x={PAD} y={y(maxY / 2) + 4} className="axis">
         {fmtY(maxY / 2)}
-      </text>
-      <text x={PAD} y={y(0) - 4} className="axis">
-        0
-      </text>
-      <line x1={W - 196} y1={12} x2={W - 172} y2={12} className="legend-line-live" />
-      <text x={W - 166} y={16} className="axis">
-        live
-      </text>
-      <line x1={W - 120} y1={12} x2={W - 96} y2={12} className="legend-line-dead" />
-      <text x={W - 90} y={16} className="axis">
-        dead
       </text>
     </svg>
   );

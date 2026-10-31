@@ -18,7 +18,13 @@ class KeyNotConfigured(Exception):
 
 
 class MetaApiError(Exception):
-    pass
+    """Provider failure. Carries HTTP status + request id; never secrets."""
+
+    def __init__(self, message: str, *, status_code: int | None = None,
+                 request_id: str | None = None):
+        super().__init__(message)
+        self.status_code = status_code
+        self.request_id = request_id
 
 
 @dataclass
@@ -28,18 +34,24 @@ class ModelResponse:
     tokens_in: int | None = None
     tokens_out: int | None = None
     latency_s: float = 0.0
+    request_id: str | None = None
 
 
 class MetaModelClient:
     def __init__(self, api_key: str | None = None, model: str | None = None,
                  endpoint: str | None = None, timeout_s: int = 15):
-        key = api_key or os.environ.get("META_MODEL_API_KEY", "")
+        key = (api_key or os.environ.get("META_MODEL_API_KEY", "")).strip()
         if not key:
             raise KeyNotConfigured("set META_MODEL_API_KEY (see .env.example)")
         self.api_key = key
-        self.model = model or os.environ.get("META_MODEL_NAME", "muse-spark-1.3")
-        base = endpoint or os.environ.get("META_MODEL_ENDPOINT", "https://api.meta.ai/v1")
-        self.url = base.rstrip("/") + "/chat/completions"
+        self.model = (model or os.environ.get("META_MODEL_NAME",
+                                              "muse-spark-1.3")).strip() or "muse-spark-1.3"
+        base = (endpoint or os.environ.get("META_MODEL_ENDPOINT",
+                                           "https://api.meta.ai/v1")).strip()
+        base = base.rstrip("/")
+        if base.endswith("/chat/completions"):
+            base = base[: -len("/chat/completions")]
+        self.url = base + "/chat/completions"
         self.timeout_s = timeout_s
 
     def complete(self, system: str, user: str, max_tokens: int = 800,
@@ -63,20 +75,51 @@ class MetaModelClient:
         start = time.time()
         try:
             with urllib.request.urlopen(req, timeout=self.timeout_s) as res:
-                body = json.loads(res.read().decode())
+                raw = res.read().decode()
+                try:
+                    headers = res.headers
+                except AttributeError:
+                    headers = {}
+                get_header = (headers.get if hasattr(headers, "get")
+                              else lambda k, d=None: d)
+                header_request_id = get_header("x-request-id")
+                body = json.loads(raw)
         except urllib.error.HTTPError as e:
-            raise MetaApiError(f"HTTP {e.code}: {e.read().decode(errors='replace')[:300]}")
+            body = e.read().decode(errors="replace")[:300]
+            hint = ""
+            if e.code == 401:
+                hint = " (bad/expired key: recreate one at dev.meta.ai)"
+            elif e.code == 429:
+                hint = " (rate limited or out of credits: retry later)"
+            raise MetaApiError(
+                f"HTTP {e.code}: {body}{hint}",
+                status_code=e.code,
+                request_id=_header_of(e),
+            )
         except OSError as e:
             raise MetaApiError(f"request failed: {e}")
         try:
             text = body["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError):
             raise MetaApiError(f"unexpected response shape: {json.dumps(body)[:300]}")
-        usage = body.get("usage", {})
+        usage = body.get("usage", {}) or {}
+        request_id = body.get("id") or body.get("request_id") or body.get("requestId")
         return ModelResponse(
             text=text,
             model=body.get("model", self.model),
             tokens_in=usage.get("prompt_tokens"),
             tokens_out=usage.get("completion_tokens"),
             latency_s=round(time.time() - start, 3),
+            request_id=request_id or header_request_id,
         )
+
+
+def _header_of(http_error) -> str | None:
+    """Best-effort request id from an HTTP error (headers may be absent)."""
+    try:
+        headers = http_error.headers
+    except AttributeError:
+        return None
+    if headers is None or not hasattr(headers, "get"):
+        return None
+    return headers.get("x-request-id")

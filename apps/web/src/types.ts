@@ -8,7 +8,7 @@ export interface CellPosition {
 
 export interface TrajectoryFrame {
   t_min: number;
-  contact: boolean;
+  contact?: boolean;
   cells: CellPosition[];
 }
 
@@ -20,13 +20,8 @@ export interface TrajectoryMeta {
   dt_min: number;
   duration_min: number;
   frame_every: number;
-  params: {
-    cell_radius_um: number;
-    adhesion: number;
-    dt_min: number;
-    separate_force: number;
-    noise_sigma: number;
-  };
+  /** PhysiCell spheroid params (oxygen, drug_dose, ...); shape follows the engine manifest. */
+  params: Record<string, number>;
   assumptions: string[];
 }
 
@@ -68,6 +63,16 @@ export interface PlanArm {
   spec: PlanSpec;
 }
 
+export interface PlanProvenance {
+  model_version: string | null;
+  request_id: string | null;
+  tokens_in: number | null;
+  tokens_out: number | null;
+  latency_s: number;
+  prompt_template: string;
+  schema_version: string;
+}
+
 export interface Plan {
   validated: boolean;
   arms: PlanArm[];
@@ -75,6 +80,8 @@ export interface Plan {
   warnings: string[];
   refusal: { reason: string } | null;
   runs_created: string[];
+  planner_backend?: "fixture" | "live";
+  provenance?: PlanProvenance;
 }
 
 export interface Job {

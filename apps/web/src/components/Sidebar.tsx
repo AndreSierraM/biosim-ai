@@ -1,8 +1,12 @@
+import type { ReactNode } from "react";
+
 export type View = "experiment" | "history" | "learn";
 
 interface Props {
   view: View;
   onNav: (view: View) => void;
+  /** Extra block between nav and help (e.g. assay params on experiment view). */
+  children?: ReactNode;
 }
 
 const ITEMS: { id: View; label: string; icon: string }[] = [
@@ -11,7 +15,7 @@ const ITEMS: { id: View; label: string; icon: string }[] = [
   { id: "learn", label: "Aprender", icon: "✎" },
 ];
 
-export default function Sidebar({ view, onNav }: Props) {
+export default function Sidebar({ view, onNav, children }: Props) {
   return (
     <aside className="sidebar" aria-label="navegación principal">
       <div className="side-brand">
@@ -45,9 +49,10 @@ export default function Sidebar({ view, onNav }: Props) {
           ))}
         </ul>
       </nav>
+      {children}
       <div className="side-help">
         <span className="side-help-face" aria-hidden="true">
-          ◕‿◕
+          ?
         </span>
         <p>
           <strong>¿Necesitas ayuda?</strong>

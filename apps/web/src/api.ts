@@ -1,6 +1,8 @@
 import type { EngineInfo, Job, Plan, TrajectoryFile } from "./types";
 
-const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8123";
+/* Same-origin by default so dev goes through the Vite /v1 proxy (no CORS
+ * needed). Set VITE_API_URL for preview/prod pointing at a reachable API. */
+const BASE = import.meta.env.VITE_API_URL ?? "";
 
 async function req<T>(
   method: string,

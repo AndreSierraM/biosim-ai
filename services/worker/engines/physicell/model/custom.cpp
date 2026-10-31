@@ -87,7 +87,10 @@ void setup_tissue( void )
 {
 	int n = parameters.ints("initial_cells");
 	Cell_Definition* pCD = cell_definitions_by_index[0];
-	double cluster_radius = 25.0;
+	// 30 um: 12 cells (~10 um radius each) fill ~44% of the ball instead of
+	// ~77% at 25 um: less initial overlap, still compact enough to grow a
+	// necrotic core at full duration.
+	double cluster_radius = 30.0;
 
 	int placed = 0, guard = 0;
 	while( placed < n && guard < 100000 )
@@ -118,6 +121,15 @@ void phenotype_function( Cell* pCell, Phenotype& phenotype, double dt )
 	std::vector<double> dens =
 		pCell->get_microenvironment()->nearest_density_vector( pCell->position );
 	double o2 = dens[oxygen_substrate_index];
+	// Oxygen-gated proliferation (Monod kinetics on G0/G1 exit): hypoxic
+	// cells linger in G0/G1 instead of cycling at full speed. K reuses the
+	// necrosis threshold so one assay-scale parameter governs quiescence.
+	// The base rate is captured once from the XML-calibrated definition.
+	static double g0g1_base_rate = -1.0;
+	if( g0g1_base_rate < 0.0 )
+	{ g0g1_base_rate = phenotype.cycle.data.transition_rate(0,1); }
+	double o2_factor = o2 / ( o2 + o2_necrosis_threshold );
+	phenotype.cycle.data.transition_rate(0,1) = g0g1_base_rate * o2_factor;
 	double rate = 0.0;
 	if( o2 < o2_necrosis_threshold )
 	{ rate = o2_necrosis_max_rate * (o2_necrosis_threshold - o2) / o2_necrosis_threshold; }

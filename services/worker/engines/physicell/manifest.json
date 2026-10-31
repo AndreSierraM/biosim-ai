@@ -2,7 +2,7 @@
   "engine_id": "physicell",
   "engine_version": "1.14.2",
   "display_name": "PhysiCell tumor spheroid assay (BSD-3, pinned 1.14.2)",
-  "fidelity": "agent-based proliferation, oxygen diffusion/uptake, hypoxic necrosis and drug dose-response",
+  "fidelity": "agent-based oxygen-gated proliferation, oxygen diffusion/uptake, hypoxic necrosis and drug dose-response",
   "integrator": "physicell-1.14.2 (mechanics dt 0.1 min, single thread)",
   "geometry": {"dimensionality": 3, "length_unit": "um", "time_unit": "min"},
   "observables": ["positions", "cell_counts", "time_series"],
@@ -11,6 +11,7 @@
     "Cells are agents, not deforming membranes; no membrane stress claims.",
     "Oxygen/necrosis/drug parameters are assay-scale, not calibrated biology.",
     "Drug kills all live cells via Hill apoptosis; no cycle specificity yet.",
+    "Cell radius is fixed by the pinned cell definition; cell_radius_um is rejected, never ignored.",
     "Deterministic only with the pinned binary, config and seed (single thread)."
   ]
 }
