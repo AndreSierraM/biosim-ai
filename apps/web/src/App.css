@@ -309,8 +309,8 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 
 .status.is-live { color: var(--green); }
 .status.is-live .dot { background: var(--green); }
-.status.is-demo { color: var(--amber, #b45309); }
-.status.is-demo .dot { background: var(--amber, #b45309); }
+.status.is-demo { color: var(--warn); }
+.status.is-demo .dot { background: var(--warn); }
 .status.is-ready .dot { background: var(--green); opacity: 0.55; }
 .status.is-offline { color: var(--red); }
 .status.is-offline .dot { background: var(--red); }
@@ -703,7 +703,7 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   gap: 4px;
   text-align: center;
   background: rgba(233, 237, 251, 0.96);
-  border-radius: var(--r-card, 12px);
+  border-radius: var(--r-card);
   padding: 16px;
   font-size: 14px;
 }
@@ -789,8 +789,6 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   font-weight: 600;
   color: var(--muted);
   box-shadow: var(--shadow-1);
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
 }
 
 .viewer-toolbar {

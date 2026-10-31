@@ -63,6 +63,18 @@ const SWEEP_CONCURRENCY = 2;
 /** Slider keys map 1:1 to PhysiCell adapter params; other engines keep plan values. */
 const PHYSICELL_SLIDER_KEYS = ["oxygen", "drug_dose", "initial_cells"] as const;
 
+/** Display names for assay params (Spanish UI, English keys stay in code). */
+const NAME_OF: Record<string, string> = {
+  oxygen: "oxígeno",
+  drug_dose: "medicamento",
+  drug_ec50: "EC50",
+  drug_kill_max: "mortalidad máx.",
+  drug_uptake: "captación",
+  max_time_min: "duración",
+  report_interval_min: "intervalo",
+  initial_cells: "tamaño inicial",
+};
+
 function err(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
@@ -153,7 +165,7 @@ export default function App() {
       : badgeState === "demo"
         ? `demo IA · fixture ${plan?.model_version ?? ""} (sin llamada Meta)`
         : badgeState === "ready"
-          ? "engines ok · plan to verify AI"
+          ? "motores listos · genera un plan para verificar la IA"
           : badgeState === "offline"
             ? "offline"
             : "connecting…";
@@ -322,6 +334,11 @@ export default function App() {
   const UNIT_OF: Record<string, string> = {
     oxygen: "mmHg",
     drug_dose: "µM",
+    drug_ec50: "µM",
+    drug_kill_max: "1/min",
+    drug_uptake: "1/min",
+    max_time_min: "min",
+    report_interval_min: "min",
     initial_cells: "células",
   };
 
@@ -333,8 +350,9 @@ export default function App() {
     if (!src || Object.keys(src).length === 0) return armName;
     return Object.entries(src)
       .map(([k, v]) => {
+        const name = NAME_OF[k] ?? k.replace(/_/g, " ");
         const unit = UNIT_OF[k];
-        return `${k.replace(/_/g, " ")} ${v}${unit ? ` ${unit}` : ""}`;
+        return `${name} ${v}${unit ? ` ${unit}` : ""}`;
       })
       .join(" · ");
   };

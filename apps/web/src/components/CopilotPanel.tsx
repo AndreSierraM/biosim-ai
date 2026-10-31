@@ -23,12 +23,23 @@ function fmtUnit(unit: string): string {
   return unit === "uM" ? "µM" : unit;
 }
 
+const NAME_OF: Record<string, string> = {
+  oxygen: "oxígeno",
+  drug_dose: "medicamento",
+  drug_ec50: "EC50",
+  drug_kill_max: "mortalidad máx.",
+  drug_uptake: "captación",
+  max_time_min: "duración",
+  report_interval_min: "intervalo",
+  initial_cells: "tamaño inicial",
+};
+
 /** Short honest subtitle from the arm's planned parameters. */
 export function armSubtitle(plan: Plan | null, armName: string): string {
   const arm = plan?.arms.find((a) => a.name === armName);
   if (!arm) return armName;
   const bits = Object.entries(arm.spec.parameters).map(
-    ([k, q]) => `${k.replace(/_/g, " ")} ${q.value} ${fmtUnit(q.unit)}`,
+    ([k, q]) => `${NAME_OF[k] ?? k.replace(/_/g, " ")} ${q.value} ${fmtUnit(q.unit)}`,
   );
   return bits.length > 0 ? bits.join(" · ") : armName;
 }

@@ -27,7 +27,7 @@ export default function Sidebar({ view, onNav, children }: Props) {
         </span>
         <span className="side-brand-text">
           <strong>BioSim</strong>
-          <small>AI · Biological Simulator</small>
+          <small>IA · Simulador biológico</small>
         </span>
       </div>
       <nav aria-label="secciones">

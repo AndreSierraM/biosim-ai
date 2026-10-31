@@ -8,7 +8,7 @@ export interface ExampleChip {
 /** Chips fill the prompt; prompts carry the fixture keywords so planning works. */
 export const EXAMPLE_CHIPS: ExampleChip[] = [
   {
-    label: "Dos brazos de oxígeno",
+    label: "Dos condiciones de oxígeno",
     prompt: "Compara oxygen availability normal vs baja en el esferoide tumoral",
     icon: "M7 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm10 0a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
   },

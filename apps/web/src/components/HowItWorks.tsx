@@ -38,7 +38,7 @@ export default function HowItWorks({ open, onClose }: Props) {
             <strong>Describe.</strong> Escribes tu hipótesis con tus palabras.
           </li>
           <li>
-            <strong>La IA planifica.</strong> El planificador propone dos brazos
+            <strong>La IA planifica.</strong> El planificador propone dos condiciones
             comparables (mismo motor, misma semilla).
           </li>
           <li>
