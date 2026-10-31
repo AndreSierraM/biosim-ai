@@ -151,6 +151,37 @@ def test_planner_status_honest_backend():
             os.environ.pop("META_MODEL_API_KEY", None)
 
 
+def test_trajectory_stride_keeps_summary_and_last_frame():
+    import tempfile
+    from app import runs as runs_mod
+    with tempfile.TemporaryDirectory() as tmp:
+        os.environ["BIOSIM_RUNS_DIR"] = tmp
+        try:
+            store = JobStore(tmp)
+            job = store.create("reference-2cell", {"adhesion": 6.0}, 7)
+            frames = [{"t_min": float(i), "cells": []} for i in range(7)]
+            store.write_trajectory(job["id"], {
+                "meta": {}, "frames": frames,
+                "summary": {"n_frames": 7, "final_live": 0},
+            })
+            store.update(job["id"], state="completed")
+            full = runs_mod.get_trajectory(job["id"])
+            assert full["stride"] == 1 and len(full["frames"]) == 7, full["stride"]
+            assert full["summary"] == {"n_frames": 7, "final_live": 0}
+            half = runs_mod.get_trajectory(job["id"], stride=2)
+            assert half["stride"] == 2, half["stride"]
+            assert [f["t_min"] for f in half["frames"]] == [0.0, 2.0, 4.0, 6.0], half
+            assert half["summary"] == {"n_frames": 7, "final_live": 0}, half
+            try:
+                runs_mod.get_trajectory(job["id"], stride=0)
+            except HTTPException as e:
+                assert e.status_code == 400, e.status_code
+            else:
+                raise AssertionError("stride 0 accepted")
+        finally:
+            os.environ.pop("BIOSIM_RUNS_DIR", None)
+
+
 def main() -> int:
     test_rejects_unknown_param()
     test_rejects_out_of_range()
@@ -161,7 +192,8 @@ def main() -> int:
     test_tools_manifest_lists_allowlist_and_ranges()
     test_plan_response_carries_provenance()
     test_planner_status_honest_backend()
-    print("PASS test_runs_api (9 tests)")
+    test_trajectory_stride_keeps_summary_and_last_frame()
+    print("PASS test_runs_api (10 tests)")
     return 0
 
 

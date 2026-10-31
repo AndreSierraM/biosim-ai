@@ -2,18 +2,40 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
 import threading
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+try:
+    import fcntl  # noqa: F401 - POSIX advisory locks (no-op fallback below)
+    _HAS_FCNTL = True
+except ImportError:  # Windows: threads-only locking
+    _HAS_FCNTL = False
+
 STATES = ("draft", "validated", "queued", "running", "completed", "failed", "cancelled")
+TERMINAL_STATES = ("completed", "failed", "cancelled")
+
+# One lock shared by every JobStore instance in this process: create/update
+# and the idempotency reserve below are atomic across API threads.
+_STORE_LOCK = threading.RLock()
 
 
 class JobCancelled(Exception):
     """Raised inside a running engine when its job was cancelled."""
+
+
+class KeyConflict(Exception):
+    """Idempotency key already reserved for a different engine/params/seed."""
+
+    def __init__(self, message: str, job: dict | None = None):
+        super().__init__(message)
+        self.job = job
 
 
 _CTX = threading.local()
@@ -74,11 +96,21 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _atomic_write_json(path: Path, payload: dict) -> None:
+    """Crash-safe write: temp file + fsync + atomic rename, never a truncation."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.parent / f".{path.name}.{os.getpid()}.{time.monotonic_ns()}.tmp"
+    with open(tmp, "w") as fh:
+        fh.write(json.dumps(payload, separators=(",", ":")))
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp, path)
+
+
 class JobStore:
     def __init__(self, root: str | Path):
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
-        self._lock = threading.Lock()
 
     def _path(self, job_id: str) -> Path:
         _validate_job_id(job_id)
@@ -104,10 +136,31 @@ class JobStore:
             "artifact_digest": None,
             "engine_version": None,
         }
-        p = self._path(job["id"])
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps(job, indent=1))
+        with _STORE_LOCK:
+            _atomic_write_json(self._path(job["id"]), job)
         return job
+
+    def create_idempotent(self, engine: str, params: dict, seed: int, model_version=None,
+                          idempotency_key: str | None = None,
+                          provenance: dict | None = None) -> tuple[dict, bool]:
+        """Atomic reserve: same check-and-create under one lock (no TOCTOU).
+
+        Returns (job, deduplicated). Raises KeyConflict when the key is already
+        reserved for a different engine/params/seed.
+        """
+        with _STORE_LOCK:
+            if idempotency_key is not None:
+                conflict = self.key_conflict(params, seed, engine, idempotency_key)
+                if conflict is not None:
+                    raise KeyConflict(
+                        f"idempotency key already used for a different run "
+                        f"({conflict['id']}: engine={conflict['engine']} "
+                        f"seed={conflict['seed']})", conflict)
+                existing = self.find_for_key(engine, params, seed, idempotency_key)
+                if existing is not None:
+                    return existing, True
+            return self.create(engine, params, seed, model_version,
+                               idempotency_key, provenance), False
 
     def get(self, job_id: str) -> dict:
         _validate_job_id(job_id)
@@ -120,12 +173,35 @@ class JobStore:
         _validate_job_id(job_id)
         if "state" in fields and fields["state"] not in STATES:
             raise ValueError(f"bad state {fields['state']}")
-        with self._lock:
+        with _STORE_LOCK:
             job = self.get(job_id)
+            if ("state" in fields and job.get("state") in TERMINAL_STATES
+                    and fields["state"] != job["state"]):
+                raise ValueError(
+                    f"terminal job {job_id} is {job['state']}: "
+                    f"refusing transition to {fields['state']}")
             job.update(fields)
             job["updated_at"] = _now()
-            self._path(job_id).write_text(json.dumps(job, indent=1))
+            _atomic_write_json(self._path(job_id), job)
             return job
+
+    def purge_expired(self, max_age_days: float) -> int:
+        """Delete job dirs whose job.json mtime is older than the retention.
+
+        Export first: only metadata+trajectory dirs go away; the digest in
+        the export bundle stays verifiable elsewhere. Returns deleted count.
+        """
+        cutoff = time.time() - max_age_days * 86400
+        deleted = 0
+        with _STORE_LOCK:
+            for meta in sorted(self.root.glob("*/job.json")):
+                try:
+                    if meta.stat().st_mtime < cutoff:
+                        shutil.rmtree(meta.parent, ignore_errors=True)
+                        deleted += 1
+                except OSError:
+                    continue
+        return deleted
 
     def list(self) -> list[dict]:
         jobs = [json.loads(p.read_text()) for p in sorted(self.root.glob("*/job.json"))]
@@ -168,7 +244,9 @@ class JobStore:
 
     def write_trajectory(self, job_id: str, artifact: dict):
         _validate_job_id(job_id)
-        self.trajectory_path(job_id).write_text(json.dumps(artifact, indent=1))
+        # Compact on disk (~30% smaller); gunzip/gzip on the wire shrinks more.
+        self.trajectory_path(job_id).write_text(
+            json.dumps(artifact, separators=(",", ":")))
 
     def read_trajectory(self, job_id: str) -> dict:
         _validate_job_id(job_id)

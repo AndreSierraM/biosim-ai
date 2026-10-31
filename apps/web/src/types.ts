@@ -44,6 +44,8 @@ export interface TrajectoryFile {
   meta: TrajectoryMeta;
   frames: TrajectoryFrame[];
   summary: TrajectorySummary;
+  /** Frame stride used for this payload (1 = every frame). Summary always covers the full run. */
+  stride?: number;
 }
 
 export interface Quantity {
@@ -92,6 +94,9 @@ export interface Job {
   seed: number;
   error: string | null;
   summary: TrajectorySummary | null;
+  engine_version?: string | null;
+  artifact_digest?: string | null;
+  model_version?: string | null;
 }
 
 export interface EngineInfo {

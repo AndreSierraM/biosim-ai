@@ -145,6 +145,7 @@ export default function CopilotPanel({
           const traj = run?.traj ?? null;
           const s = traj?.summary ?? null;
           const t50 = s ? fmtT50(s.t50_min) : null;
+          const job = run?.job ?? null;
           return (
             <article
               key={arm.name}
@@ -181,6 +182,28 @@ export default function CopilotPanel({
                   Exportar
                 </button>
               </div>
+              {job && (
+                <details className="provenance">
+                  <summary>¿Cómo sabemos esto?</summary>
+                  <dl>
+                    <dt>run</dt>
+                    <dd title={job.id}>{job.id.slice(0, 8)}</dd>
+                    <dt>motor</dt>
+                    <dd>{job.engine} v{job.engine_version ?? "?"}</dd>
+                    <dt>semilla</dt>
+                    <dd>{job.seed}</dd>
+                    {job.artifact_digest && (
+                      <>
+                        <dt>huella</dt>
+                        <dd title={job.artifact_digest}>{job.artifact_digest.slice(0, 19)}…</dd>
+                      </>
+                    )}
+                  </dl>
+                  <p className="provenance-note">
+                    Números calculados por el motor en esta simulación, no una predicción.
+                  </p>
+                </details>
+              )}
             </article>
           );
         })}

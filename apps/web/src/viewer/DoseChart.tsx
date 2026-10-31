@@ -16,44 +16,48 @@ interface Props {
   onSelect: (dose: number) => void;
 }
 
+/**
+ * Quantitative dose position: log1p scale so dose 0 (control) stays
+ * visible while 0.3 vs 10 keep their real numeric distances.
+ * Linear scales crowd low doses; categorical indexes lie about spacing.
+ */
+export function doseX(dose: number, maxDose: number): number {
+  const span = W - PAD - 16;
+  if (!(maxDose > 0)) return PAD;
+  const t = Math.log1p(Math.max(0, dose)) / Math.log1p(maxDose);
+  return PAD + t * span;
+}
+
 /** Log-linear IC50: dose where live cells cross 50% of the lowest-dose arm. */
-export function ic50Position(points: DosePoint[]): { value: number; pos: number } | null {
+export function ic50(points: DosePoint[]): number | null {
   if (points.length < 2) return null;
-  const target = points[0].live / 2;
-  for (let i = 1; i < points.length; i++) {
-    const a = points[i - 1];
-    const b = points[i];
+  const sorted = [...points].sort((p, q) => p.dose - q.dose);
+  const target = sorted[0].live / 2;
+  for (let i = 1; i < sorted.length; i++) {
+    const a = sorted[i - 1];
+    const b = sorted[i];
     if (a.live !== b.live && (a.live - target) * (b.live - target) <= 0) {
       const f = (target - a.live) / (b.live - a.live);
-      const value =
-        a.dose <= 0
-          ? a.dose + f * (b.dose - a.dose)
-          : Math.pow(10, Math.log10(a.dose) + f * (Math.log10(b.dose) - Math.log10(a.dose)));
-      return { value, pos: i - 1 + f };
+      if (a.dose <= 0) return a.dose + f * (b.dose - a.dose);
+      return Math.pow(10, Math.log10(a.dose) + f * (Math.log10(b.dose) - Math.log10(a.dose)));
     }
   }
   return null;
 }
 
-/** Log-linear IC50: dose where live cells cross 50% of the lowest-dose arm. */
-export function ic50(points: DosePoint[]): number | null {
-  return ic50Position(points)?.value ?? null;
-}
-
 export default function DoseChart({ points, selected, onSelect }: Props) {
   const sorted = useMemo(() => [...points].sort((p, q) => p.dose - q.dose), [points]);
+  const maxDose = useMemo(() => Math.max(0, ...sorted.map((s) => s.dose)), [sorted]);
   if (sorted.length === 0) return null;
   const maxY = niceCeil(Math.max(1, ...sorted.map((s) => s.live)));
-  const n = sorted.length;
-  const x = (i: number) => (n === 1 ? W / 2 : PAD + (i / (n - 1)) * (W - PAD - 16));
+  const x = (dose: number) => doseX(dose, maxDose);
   const y = (v: number) => H - PAD - (v / (maxY * 1.1)) * (H - PAD - 14);
-  const line = sorted.map((s, i) => `${x(i).toFixed(1)},${y(s.live).toFixed(1)}`).join(" ");
+  const line = sorted.map((s) => `${x(s.dose).toFixed(1)},${y(s.live).toFixed(1)}`).join(" ");
   const half = sorted[0].live / 2;
-  const icPos = ic50Position(sorted);
-  const ic = icPos?.value ?? null;
-  const fmtTick = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
-  const xIc = icPos === null ? 0 : x(icPos.pos);
+  const ic = ic50(sorted);
+  const xIc = ic === null ? 0 : x(ic);
   const xIcLabel = Math.min(Math.max(xIc, PAD + 40), W - 48);
+  const fmtTick = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
 
   return (
     <div>
@@ -61,7 +65,7 @@ export default function DoseChart({ points, selected, onSelect }: Props) {
         className="chart"
         viewBox={`0 0 ${W} ${H}`}
         role="img"
-        aria-label={`final live cells versus drug dose in µM (click a point to view)${
+        aria-label={`células vivas finales frente a dosis de fármaco en µM (pulsa un punto para verlo)${
           ic === null ? "" : `, IC50 aprox ${ic.toFixed(2)} µM`
         }`}
       >
@@ -69,7 +73,7 @@ export default function DoseChart({ points, selected, onSelect }: Props) {
         <line x1={PAD} x2={W - 16} y1={y(maxY)} y2={y(maxY)} className="grid" />
         <line x1={PAD} x2={W - 16} y1={y(half)} y2={y(half)} className="cursor" strokeDasharray="5 4" />
         <text x={W - 20} y={y(half) - 6} textAnchor="end" className="axis">
-          50% of control
+          50% del control
         </text>
         <text x={PAD - 6} y={y(maxY) + 4} textAnchor="end" className="axis">
           {maxY}
@@ -81,20 +85,20 @@ export default function DoseChart({ points, selected, onSelect }: Props) {
           0
         </text>
         <polyline points={line} className="series-live" />
-        {icPos !== null && (
+        {ic !== null && (
           <g aria-hidden="true">
             <line x1={xIc} x2={xIc} y1={30} y2={H - PAD} className="ic50-marker" />
             <text x={xIcLabel} y={22} textAnchor="middle" className="ic50-label">
-              IC50 ≈ {icPos.value.toFixed(2)} µM
+              IC50 ≈ {ic.toFixed(2)} µM
             </text>
           </g>
         )}
-        {sorted.map((s, i) => (
+        {sorted.map((s) => (
           <g
             key={s.dose}
             role="button"
             tabIndex={0}
-            aria-label={`show dose ${s.dose} µM, ${s.live} live cells`}
+            aria-label={`ver dosis ${s.dose} µM, ${s.live} células vivas`}
             aria-pressed={s.dose === selected}
             onClick={() => onSelect(s.dose)}
             onKeyDown={(e) => {
@@ -106,7 +110,7 @@ export default function DoseChart({ points, selected, onSelect }: Props) {
             style={{ cursor: "pointer" }}
           >
             <circle
-              cx={x(i)}
+              cx={x(s.dose)}
               cy={y(s.live)}
               r={s.dose === selected ? 7 : 5}
               className="cursor-dot-live"
@@ -114,32 +118,48 @@ export default function DoseChart({ points, selected, onSelect }: Props) {
               strokeWidth={2}
             />
             <text
-              x={x(i)}
+              x={x(s.dose)}
               y={y(s.live) < 36 ? y(s.live) + 20 : y(s.live) - 12}
               textAnchor="middle"
               className="axis"
             >
               {s.live}
             </text>
-            <line x1={x(i)} x2={x(i)} y1={H - 30} y2={H - 24} className="grid" />
-            <text x={x(i)} y={H - 22} textAnchor="middle" className="axis">
+            <line x1={x(s.dose)} x2={x(s.dose)} y1={H - 30} y2={H - 24} className="grid" />
+            <text x={Math.min(Math.max(x(s.dose), PAD - 10), W - 30)} y={H - 22} textAnchor="middle" className="axis">
               {s.dose} µM
             </text>
           </g>
         ))}
         <text x={W - 20} y={H - 6} textAnchor="end" className="axis">
-          drug dose (µM)
+          dosis (µM, escala log)
         </text>
       </svg>
       <p className="ic50">
         {ic === null ? (
           <>
-            IC50 <span className="ic50-hint">not bracketed — widen the ladder</span>
+            IC50 <span className="ic50-hint">no estimable con estas dosis — amplía el rango</span>
           </>
         ) : (
-          `IC50 aprox ${ic.toFixed(2)} µM · assay-scale, not clinical`
+          `IC50 aprox ${ic.toFixed(2)} µM · interpolación de ensayo, no clínica`
         )}
       </p>
+      <table className="dose-table" aria-label="dosis y células vivas">
+        <thead>
+          <tr>
+            <th scope="col">dosis (µM)</th>
+            <th scope="col">vivas</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((s) => (
+            <tr key={s.dose} aria-current={s.dose === selected ? true : undefined}>
+              <td>{s.dose}</td>
+              <td>{s.live}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

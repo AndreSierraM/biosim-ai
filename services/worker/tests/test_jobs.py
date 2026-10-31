@@ -118,6 +118,105 @@ def test_key_conflict_detects_reused_key():
         assert clash is not None and clash["id"] == job["id"], clash
 
 
+def test_terminal_states_are_immutable():
+    with tempfile.TemporaryDirectory() as tmp:
+        store = JobStore(tmp)
+        for terminal in ("completed", "failed", "cancelled"):
+            job = store.create("reference-2cell", {}, 7)
+            store.update(job["id"], state="completed" if terminal == "completed"
+                         else "running")
+            if terminal != "completed":
+                store.update(job["id"], state=terminal)
+            for other in ("queued", "running", "completed"):
+                if other == terminal:
+                    continue
+                try:
+                    store.update(job["id"], state=other)
+                except ValueError:
+                    pass
+                else:
+                    raise AssertionError(
+                        f"{terminal} allowed transition to {other}")
+            assert store.get(job["id"])["state"] == terminal
+
+
+def test_concurrent_updates_never_corrupt():
+    import threading
+    with tempfile.TemporaryDirectory() as tmp:
+        store = JobStore(tmp)
+        job = store.create("reference-2cell", {}, 7)
+        errors: list = []
+
+        def bump(i: int):
+            try:
+                for _ in range(50):
+                    store.update(job["id"], provenance={"i": i})
+            except Exception as e:  # noqa: BLE001 - collected, asserted empty
+                errors.append(e)
+
+        threads = [threading.Thread(target=bump, args=(i,)) for i in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        assert not errors, errors[:3]
+        final = store.get(job["id"])
+        assert final["state"] == "queued" and isinstance(final["provenance"], dict)
+
+
+def test_create_idempotent_reserve_is_atomic():
+    import threading
+    from worker.jobs import KeyConflict
+    with tempfile.TemporaryDirectory() as tmp:
+        store = JobStore(tmp)
+        job, dedup = store.create_idempotent("e", {"a": 1}, 3, idempotency_key="k")
+        assert dedup is False
+        same, dedup = store.create_idempotent("e", {"a": 1}, 3, idempotency_key="k")
+        assert dedup is True and same["id"] == job["id"], (same, dedup)
+        try:
+            store.create_idempotent("e", {"a": 2}, 3, idempotency_key="k")
+        except KeyConflict:
+            pass
+        else:
+            raise AssertionError("conflicting reuse accepted")
+        results: list = []
+
+        def reserve():
+            try:
+                results.append(store.create_idempotent("e", {"a": 5}, 5,
+                                                       idempotency_key="race"))
+            except KeyConflict as e:
+                results.append(e)
+
+        threads = [threading.Thread(target=reserve) for _ in range(20)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        made = [r for r in results if not isinstance(r, KeyConflict)]
+        assert len(made) == 20 and len({r[0]["id"] for r in made}) == 1, len(made)
+        assert all(r[1] in (True, False) for r in made)
+        assert sum(1 for r in made if r[1] is False) == 1
+
+
+def test_purge_expired_keeps_fresh():
+    import os
+    with tempfile.TemporaryDirectory() as tmp:
+        store = JobStore(tmp)
+        fresh = store.create("reference-2cell", {}, 1)
+        old = store.create("reference-2cell", {}, 2)
+        ancient = Path(tmp) / old["id"] / "job.json"
+        os.utime(ancient, (0, 0))
+        assert store.purge_expired(max_age_days=30) == 1
+        assert store.get(fresh["id"])["id"] == fresh["id"]
+        try:
+            store.get(old["id"])
+        except KeyError:
+            pass
+        else:
+            raise AssertionError("expired job survived")
+
+
 def main() -> int:
     test_create_get_roundtrip()
     test_update_state_and_rejects_bad_state()
@@ -127,7 +226,11 @@ def main() -> int:
     test_valid_12hex_id_works()
     test_find_for_key_returns_newest_match()
     test_key_conflict_detects_reused_key()
-    print("PASS test_jobs (8 tests)")
+    test_terminal_states_are_immutable()
+    test_concurrent_updates_never_corrupt()
+    test_create_idempotent_reserve_is_atomic()
+    test_purge_expired_keeps_fresh()
+    print("PASS test_jobs (12 tests)")
     return 0
 
 

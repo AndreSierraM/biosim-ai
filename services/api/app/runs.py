@@ -73,23 +73,16 @@ def submit_run(body: dict):
             f"unknown params for engine {req.engine}: {unknown}; "
             f"known: {sorted(handle.defaults)}",
         )
+    from worker.jobs import KeyConflict
     store = _store()
-    if req.idempotency_key is not None:
-        conflict = store.key_conflict(req.params, req.seed, req.engine,
-                                      req.idempotency_key)
-        if conflict is not None:
-            raise HTTPException(
-                422,
-                f"idempotency key already used for a different run "
-                f"({conflict['id']}: engine={conflict['engine']} "
-                f"seed={conflict['seed']})",
-            )
-        existing = store.find_for_key(req.engine, req.params, req.seed,
-                                      req.idempotency_key)
-        if existing is not None:
-            return {**existing, "deduplicated": True}
-    job = store.create(req.engine, req.params, req.seed,
-                       idempotency_key=req.idempotency_key)
+    try:
+        job, deduplicated = store.create_idempotent(
+            req.engine, req.params, req.seed,
+            idempotency_key=req.idempotency_key)
+    except KeyConflict as e:
+        raise HTTPException(422, str(e))
+    if deduplicated:
+        return {**job, "deduplicated": True}
     fut = _POOL.submit(execute, store, job["id"])
     with _FUTURES_LOCK:
         _FUTURES[job["id"]] = fut
@@ -141,8 +134,19 @@ def _ready_trajectory(job_id: str) -> dict:
 
 
 @router.get("/{job_id}/trajectory")
-def get_trajectory(job_id: str):
-    return _ready_trajectory(job_id)
+def get_trajectory(job_id: str, stride: int = 1):
+    """Full artifact by default. stride=N returns every Nth frame (plus the
+    last one) for small screens; summary always describes the full run."""
+    if not isinstance(stride, int) or isinstance(stride, bool) or stride < 1:
+        raise HTTPException(400, "stride must be an integer >= 1")
+    artifact = _ready_trajectory(job_id)
+    frames = artifact.get("frames", [])
+    if stride == 1 or len(frames) <= 1:
+        return {**artifact, "stride": 1}
+    sliced = frames[::stride]
+    if sliced[-1] is not frames[-1]:
+        sliced = [*sliced, frames[-1]]
+    return {**artifact, "frames": sliced, "stride": stride}
 
 
 @router.get("/{job_id}/bundle")

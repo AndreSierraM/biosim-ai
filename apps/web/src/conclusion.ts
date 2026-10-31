@@ -54,22 +54,23 @@ export function buildConclusion(arms: ConclusionArm[]): string | null {
       `ambas condiciones terminaron con ${fmtInt(sa.final_live)} células vivas`,
     );
   } else {
-    const winner = dLive > 0 ? b : a;
-    const loser = dLive > 0 ? a : b;
-    const w = dLive > 0 ? sb : sa;
-    const l = dLive > 0 ? sa : sb;
-    let pct = "";
-    if (l.final_live > 0) {
-      const ratio = w.final_live / l.final_live;
-      pct =
-        ratio >= 10
-          ? ` (unas ${Math.round(ratio)} veces más)`
-          : ` (un ${Math.round((ratio - 1) * 100)} % más)`;
+    const high = dLive > 0 ? b : a;
+    const low = dLive > 0 ? a : b;
+    const hi = dLive > 0 ? sb.final_live : sa.final_live;
+    const lo = dLive > 0 ? sa.final_live : sb.final_live;
+    if (lo === 0) {
+      parts.push(
+        `${low.label} terminó sin células vivas frente a ` +
+          `${fmtInt(hi)} de ${high.label} en esta simulación`,
+      );
+    } else {
+      const pctLess = Math.round((((hi - lo) / hi) * 100) * 10) / 10;
+      const pctText = Number.isInteger(pctLess) ? String(pctLess) : pctLess.toFixed(1);
+      parts.push(
+        `${low.label} terminó con un ${pctText} % menos de células vivas que ` +
+          `${high.label} (${fmtInt(lo)} frente a ${fmtInt(hi)}, en esta simulación)`,
+      );
     }
-    parts.push(
-      `${winner.label} terminó con ${fmtInt(w.final_live)} células vivas frente a ` +
-        `${fmtInt(l.final_live)} de ${loser.label}${pct}`,
-    );
   }
   const fa = deadFraction(sa);
   const fb = deadFraction(sb);

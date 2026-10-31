@@ -108,8 +108,11 @@ export default function CellViewer({
   const [zoomed, setZoomed] = useState(false);
   const [viewIdx, setViewIdx] = useState(0);
   const [isFull, setIsFull] = useState(false);
+  const [glDead, setGlDead] = useState(false);
   const reducedMotion = useMemo(() => prefersReducedMotion(), []);
   const live = useRef({ playing: !prefersReducedMotion(), speed: 1, simMin: 0, seek: -1 });
+  const spinRef = useRef(autoRotate && !prefersReducedMotion());
+  const dirtyRef = useRef(true);
 
   const n = data.frames.length;
   const rawDt = n > 1 ? data.meta.duration_min / (n - 1) : 1;
@@ -148,8 +151,9 @@ export default function CellViewer({
     const camera = new THREE.PerspectiveCamera(45, 1, 0.5, 2500);
     camera.position.set(...VIEWS[0].pos);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "low-power" });
+    // Old phones: cap DPR — halves GPU fill cost, still crisp on small screens.
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.0;
     mount.appendChild(renderer.domElement);
@@ -164,9 +168,14 @@ export default function CellViewer({
     rigRef.current = { camera, controls };
     const stopSpin = () => {
       controls.autoRotate = false;
+      spinRef.current = false;
       setSpin(false);
     };
     controls.addEventListener("start", stopSpin);
+    const markDirty = () => {
+      dirtyRef.current = true;
+    };
+    controls.addEventListener("change", markDirty);
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0xcfc9ee, 0.75));
     const key = new THREE.DirectionalLight(0xffffff, 1.6);
@@ -184,7 +193,8 @@ export default function CellViewer({
     scene.add(grid);
 
     const mesh = new THREE.InstancedMesh(
-      new THREE.SphereGeometry(radius, 24, 16),
+      // 16x12 segments: ~40% fewer triangles than 24x16, same look at cell scale.
+      new THREE.SphereGeometry(radius, 16, 12),
       new THREE.MeshStandardMaterial({ roughness: 0.3, metalness: 0.0 }),
       maxCells,
     );
@@ -232,11 +242,20 @@ export default function CellViewer({
     let raf = 0;
     const tick = (now: number) => {
       raf = requestAnimationFrame(tick);
+      // Hidden tab: skip GPU work entirely (old phones overheat otherwise).
+      if (document.hidden) {
+        last = now;
+        return;
+      }
       const dtWall = Math.min((now - last) / 1000, 0.1);
       last = now;
+      const animating = st.playing || spinRef.current;
       if (n <= 0) {
-        controls.update();
-        renderer.render(scene, camera);
+        if (animating || dirtyRef.current) {
+          dirtyRef.current = false;
+          controls.update();
+          renderer.render(scene, camera);
+        }
         return;
       }
       if (st.seek >= 0) {
@@ -250,12 +269,23 @@ export default function CellViewer({
       if (idx !== lastIdx) {
         lastIdx = idx;
         applyFrame(idx);
+        dirtyRef.current = true;
         setFrame(idx);
       }
+      // Paused and untouched: skip GPU work (render on demand only).
+      if (!animating && !dirtyRef.current) return;
+      dirtyRef.current = false;
       controls.update();
       renderer.render(scene, camera);
     };
     raf = requestAnimationFrame(tick);
+
+    const onContextLost = (e: Event) => {
+      e.preventDefault();
+      cancelAnimationFrame(raf);
+      setGlDead(true);
+    };
+    renderer.domElement.addEventListener("webglcontextlost", onContextLost);
 
     const resize = () => {
       const w = mount.clientWidth;
@@ -264,6 +294,7 @@ export default function CellViewer({
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
+      dirtyRef.current = true;
     };
     resize();
     const ro = new ResizeObserver(resize);
@@ -274,6 +305,8 @@ export default function CellViewer({
       ro.disconnect();
       rigRef.current = null;
       controls.removeEventListener("start", stopSpin);
+      controls.removeEventListener("change", markDirty);
+      renderer.domElement.removeEventListener("webglcontextlost", onContextLost);
       controls.dispose();
       scene.traverse((obj) => {
         const anyObj = obj as unknown as {
@@ -298,7 +331,9 @@ export default function CellViewer({
   const toggleSpin = () => {
     const rig = rigRef.current;
     const next = !spin;
+    spinRef.current = next;
     setSpin(next);
+    dirtyRef.current = true;
     if (rig) rig.controls.autoRotate = next;
   };
 
@@ -361,6 +396,12 @@ export default function CellViewer({
         role="img"
         aria-label={`Esferoide 3D, ${stats.live} vivas, ${stats.dead} muertas, t ${tLabel}`}
       >
+        {glDead && (
+          <div className="viewer-fallback" role="alert">
+            <p>Tu dispositivo no pudo mostrar el 3D (WebGL no disponible).</p>
+            <p>Los números de abajo y la gráfica siguen siendo los calculados por el motor.</p>
+          </div>
+        )}
         {badge && <div className="viewer-badge">{badge}</div>}
         <div className="viewer-toolbar" role="group" aria-label="herramientas de vista">
           <button

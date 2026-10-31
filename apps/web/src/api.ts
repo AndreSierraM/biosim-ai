@@ -26,10 +26,12 @@ async function req<T>(
 export const api = {
   plan: (prompt: string) => req<Plan>("POST", "/v1/plan", { prompt }),
   engines: () => req<{ engines: EngineInfo[] }>("GET", "/v1/engines"),
-  submit: (engine: string, params: Record<string, number>, seed: number) =>
-    req<Job>("POST", "/v1/runs", { engine, params, seed }),
+  submit: (engine: string, params: Record<string, number>, seed: number, idempotency_key?: string) =>
+    req<Job>("POST", "/v1/runs", { engine, params, seed, idempotency_key }),
   getRun: (id: string, signal?: AbortSignal) => req<Job>("GET", `/v1/runs/${id}`, undefined, signal),
-  trajectory: (id: string) => req<TrajectoryFile>("GET", `/v1/runs/${id}/trajectory`),
+  listRuns: () => req<{ runs: Job[] }>("GET", "/v1/runs"),
+  trajectory: (id: string, stride = 1) =>
+    req<TrajectoryFile>("GET", `/v1/runs/${id}/trajectory${stride > 1 ? `?stride=${stride}` : ""}`),
   bundle: (id: string) => req<Record<string, unknown>>("GET", `/v1/runs/${id}/bundle`),
 };
 

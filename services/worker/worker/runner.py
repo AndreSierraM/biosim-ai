@@ -15,11 +15,22 @@ def _cancelled(store: JobStore, job_id: str) -> bool:
         return True
 
 
+def _safe_update(store: JobStore, job_id: str, **fields) -> dict:
+    """Update unless the job reached a terminal state first (cancel wins)."""
+    try:
+        return store.update(job_id, **fields)
+    except ValueError:
+        return store.get(job_id)
+
+
 def execute(store: JobStore, job_id: str) -> dict:
     job = store.get(job_id)
     if job["state"] == "cancelled":
         return job
-    store.update(job_id, state="running")
+    try:
+        store.update(job_id, state="running")
+    except ValueError:
+        return store.get(job_id)
     set_current_job(job_id, store)
     try:
         if _cancelled(store, job_id):
@@ -32,7 +43,8 @@ def execute(store: JobStore, job_id: str) -> dict:
         digest = hashlib.sha256(
             json.dumps(artifact, sort_keys=True).encode()
         ).hexdigest()
-        return store.update(
+        return _safe_update(
+            store,
             job_id,
             state="completed",
             summary=artifact["summary"],
@@ -44,7 +56,8 @@ def execute(store: JobStore, job_id: str) -> dict:
     except Exception as e:  # noqa: BLE001 - worker must record failure, never crash
         if _cancelled(store, job_id):
             return store.get(job_id)
-        return store.update(job_id, state="failed", error=f"{type(e).__name__}: {e}"[:500])
+        return _safe_update(store, job_id, state="failed",
+                            error=f"{type(e).__name__}: {e}"[:500])
     finally:
         clear_current_job()
         unregister_proc(job_id)

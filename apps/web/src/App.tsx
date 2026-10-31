@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import CellViewer from "./viewer/CellViewer";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
+const CellViewer = lazy(() => import("./viewer/CellViewer"));
 import DoseChart from "./viewer/DoseChart";
 import Sidebar, { type View } from "./components/Sidebar";
 import PromptBar from "./components/PromptBar";
@@ -25,7 +25,35 @@ interface HistoryRow {
   id: string;
   label: string;
   job: Job;
-  traj: TrajectoryFile | null;
+}
+
+const HISTORY_KEY = "biosim-history-v1";
+const HISTORY_MAX = 20;
+
+function loadHistoryIds(): { id: string; label: string }[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (r): r is { id: string; label: string } =>
+          typeof r === "object" && r !== null &&
+          typeof (r as { id: string }).id === "string" &&
+          typeof (r as { label: string }).label === "string",
+      )
+      .slice(0, HISTORY_MAX);
+  } catch {
+    return [];
+  }
+}
+
+/** Stable idempotency key: same generation+inputs dedupe accidental double
+ *  submits; any new action bumps the generation so replicas run for real. */
+function idemKey(gen: number, engine: string, values: Record<string, number>, seed: number): string {
+  const params = Object.keys(values).sort().map((k) => `${k}=${values[k]}`).join(",");
+  return `g${gen}:${engine}:${seed}:${params}`.slice(0, 120);
 }
 
 const SWEEP_OXYGEN = 38;
@@ -44,6 +72,19 @@ function trajMaxCells(traj: TrajectoryFile): number {
   let m = 1;
   for (const f of traj.frames) m = Math.max(m, f.cells.length);
   return m;
+}
+
+/** Old phones get fewer frames over the wire (stride 2 ≈ half the JSON). */
+function trajStride(): number {
+  if (typeof window === "undefined") return 1;
+  if (window.innerWidth < 700) return 2;
+  if (typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches) return 2;
+  return 1;
+}
+
+function isLightPreview(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.innerWidth < 700;
 }
 
 function isAbort(e: unknown): boolean {
@@ -70,6 +111,8 @@ export default function App() {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [howOpen, setHowOpen] = useState(false);
   const pollControllers = useRef<Set<AbortController>>(new Set());
+  /** Experiment generation: stale async results never touch current state. */
+  const genRef = useRef(0);
 
   // Cancela polls activos al desmontar.
   useEffect(() => {
@@ -129,7 +172,7 @@ export default function App() {
   // Golden preview spheroid: real computed positions, shown until the first run lands.
   useEffect(() => {
     const c = new AbortController();
-    loadPreviewSpheroid(c.signal)
+    loadPreviewSpheroid(c.signal, isLightPreview())
       .then(setPreview)
       .catch((e: unknown) => {
         if (!isAbort(e)) setPreviewError(err(e));
@@ -138,54 +181,101 @@ export default function App() {
   }, []);
 
   const doPlan = async () => {
+    const gen = ++genRef.current;
+    abortPolls();
     setError(null);
     setSweepError(null);
     setPlan(null);
     setRuns({});
+    setSweep([]);
+    setSelDose(null);
     setSelectedArm(null);
     setPlannerBackend(null);
     setBusy("Planning…");
     try {
       const p = await api.plan(prompt);
+      if (genRef.current !== gen) return;
       setPlan(p);
       if (p.planner_backend) setPlannerBackend(p.planner_backend);
       else if (p.model_version === "planner-fixture") setPlannerBackend("fixture");
       else if (p.model_version) setPlannerBackend("live");
       if (p.validated && p.arms.length > 0) setSelectedArm(p.arms[0].name);
     } catch (e) {
+      if (genRef.current !== gen) return;
       if (err(e).toLowerCase().includes("planner")) setPlannerBackend(null);
       setError(err(e));
     } finally {
-      setBusy("");
+      if (genRef.current === gen) setBusy("");
     }
   };
 
   const logHistory = (row: HistoryRow) => {
     setHistory((prev) => {
       const rest = prev.filter((r) => r.id !== row.id);
-      return [...rest, row];
+      return [...rest, row].slice(-HISTORY_MAX);
     });
   };
+
+  // Persist only own ids+labels (never other users' jobs); states revalidate on load.
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        HISTORY_KEY,
+        JSON.stringify(history.map((r) => ({ id: r.id, label: r.label }))),
+      );
+    } catch {
+      // Private mode / quota: history simply stays in memory.
+    }
+  }, [history]);
+
+  // Revalidate stored history after reload: drop missing, refresh states.
+  useEffect(() => {
+    let cancelled = false;
+    const stored = loadHistoryIds();
+    if (stored.length === 0) return;
+    (async () => {
+      const rows: HistoryRow[] = [];
+      for (const s of stored) {
+        try {
+          const job = await api.getRun(s.id);
+          rows.push({ id: s.id, label: s.label, job });
+        } catch {
+          // Deleted/unknown run: stays out of the list, no crash.
+        }
+        if (cancelled) return;
+      }
+      if (!cancelled && rows.length > 0) setHistory(rows);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const runArm = async (
     armName: string,
     engine: string,
     values: Record<string, number>,
     seed: number,
+    gen: number,
   ) => {
     const { signal, done } = trackPoll();
     try {
-      const job = await api.submit(engine, values, seed);
+      const job = await api.submit(engine, values, seed, idemKey(gen, engine, values, seed));
+      if (genRef.current !== gen) return;
       setRuns((prev) => ({ ...prev, [armName]: { job, traj: prev[armName]?.traj ?? null } }));
-      logHistory({ id: job.id, label: `brazo ${armName}`, job, traj: null });
+      logHistory({ id: job.id, label: `brazo ${armName}`, job });
       const final = await pollRun(job.id, { signal });
+      if (genRef.current !== gen) return;
+      logHistory({ id: final.id, label: `brazo ${armName}`, job: final });
       if (final.state !== "completed") {
-        logHistory({ id: final.id, label: `brazo ${armName}`, job: final, traj: null });
         throw new Error(`run ${final.id} ${final.state}: ${final.error ?? ""}`);
       }
-      const traj = await api.trajectory(final.id);
+      const traj = await api.trajectory(final.id, trajStride());
+      if (genRef.current !== gen) return;
       setRuns((prev) => ({ ...prev, [armName]: { job: final, traj } }));
-      logHistory({ id: final.id, label: `brazo ${armName}`, job: final, traj });
+    } catch (e) {
+      if (genRef.current !== gen || isAbort(e)) return;
+      setError(err(e));
     } finally {
       done();
     }
@@ -270,6 +360,7 @@ export default function App() {
 
   const doRunAll = async () => {
     if (!plan?.validated) return;
+    const gen = ++genRef.current;
     abortPolls();
     setError(null);
     setSweepError(null);
@@ -279,51 +370,67 @@ export default function App() {
         plan.arms.map((arm) => {
           const spec = armValues(arm.name);
           if (!spec) throw new Error(`arm ${arm.name} missing from plan`);
-          return runArm(arm.name, spec.engine, spec.values, spec.seed);
+          return runArm(arm.name, spec.engine, spec.values, spec.seed, gen);
         }),
       );
     } catch (e) {
-      if (!isAbort(e)) setError(err(e));
+      if (genRef.current !== gen || isAbort(e)) return;
+      setError(err(e));
     } finally {
-      setBusy("");
+      if (genRef.current === gen) setBusy("");
     }
   };
 
   const doRerun = async (armName: string) => {
     const spec = armValues(armName);
     if (!spec) return;
+    // New generation: a rerun always computes fresh (replicas stay honest).
+    const gen = ++genRef.current;
     abortPolls();
     setError(null);
     setSweepError(null);
     setBusy(`Rerunning ${armName}…`);
     try {
-      await runArm(armName, spec.engine, spec.values, spec.seed);
+      await runArm(armName, spec.engine, spec.values, spec.seed, gen);
     } catch (e) {
-      if (!isAbort(e)) setError(err(e));
+      if (genRef.current !== gen || isAbort(e)) return;
+      setError(err(e));
     } finally {
-      setBusy("");
+      if (genRef.current === gen) setBusy("");
     }
   };
 
-  const runSweepDose = async (dose: number) => {
+  const runSweepDose = async (dose: number, gen: number) => {
     const { signal, done } = trackPoll();
     try {
+      const values = { oxygen: SWEEP_OXYGEN, drug_dose: dose };
       const job = await api.submit(
         "physicell",
-        { oxygen: SWEEP_OXYGEN, drug_dose: dose },
+        values,
         SWEEP_SEED,
+        idemKey(gen, "physicell", values, SWEEP_SEED),
       );
+      if (genRef.current !== gen) return;
       setSweep((prev) => [...prev, { dose, job, traj: null }]);
-      logHistory({ id: job.id, label: `dosis ${dose} µM`, job, traj: null });
+      logHistory({ id: job.id, label: `dosis ${dose} µM`, job });
       const final = await pollRun(job.id, { signal });
+      if (genRef.current !== gen) return;
+      logHistory({ id: final.id, label: `dosis ${dose} µM`, job: final });
       if (final.state !== "completed") {
         setSweep((prev) => prev.map((s) => (s.job.id === final.id ? { dose, job: final, traj: null } : s)));
-        logHistory({ id: final.id, label: `dosis ${dose} µM`, job: final, traj: null });
         throw new Error(`dose ${dose}: run ${final.id} ${final.state}: ${final.error ?? ""}`);
       }
-      const traj = await api.trajectory(final.id);
+      const traj = await api.trajectory(final.id, trajStride());
+      if (genRef.current !== gen) return;
       setSweep((prev) => prev.map((s) => (s.job.id === final.id ? { dose, job: final, traj } : s)));
-      logHistory({ id: final.id, label: `dosis ${dose} µM`, job: final, traj });
+    } catch (e) {
+      if (genRef.current !== gen || isAbort(e)) {
+        if (genRef.current === gen) {
+          setSweep((prev) => prev.filter((s) => s.traj !== null || s.dose !== dose));
+        }
+        return;
+      }
+      throw e;
     } finally {
       done();
     }
@@ -349,6 +456,7 @@ export default function App() {
       return;
     }
     abortPolls();
+    const gen = genRef.current;
     setError(null);
     setSweepError(null);
     setSweep([]);
@@ -360,17 +468,21 @@ export default function App() {
       while (queue.length > 0) {
         const dose = queue.shift() as number;
         try {
-          await runSweepDose(dose);
+          await runSweepDose(dose, gen);
         } catch (e) {
-          if (!isAbort(e)) failures.push(err(e));
+          if (genRef.current !== gen || isAbort(e)) return;
+          failures.push(err(e));
         }
       }
     };
     await Promise.all(
       Array.from({ length: Math.min(SWEEP_CONCURRENCY, doses.length) }, () => worker()),
     );
+    if (genRef.current !== gen) return;
     if (failures.length > 0) {
-      setError(`${failures.length} of ${doses.length} doses failed: ${failures.join("; ")}`);
+      const msg = `${failures.length} of ${doses.length} doses failed: ${failures.join("; ")}`;
+      setError(msg);
+      setSweepError(msg);
     }
     setBusy("");
   };
@@ -495,22 +607,30 @@ export default function App() {
                     </div>
                   )}
                   {viewerData ? (
-                    <CellViewer
-                      key={viewerIsLive ? runs[activeArm as string].job.id : "preview"}
-                      data={viewerData}
-                      yMax={sharedYMax}
-                      autoRotate={!viewerIsLive}
-                      badge={
-                        viewerIsLive ? (
-                          <span className="live-badge">
-                            <span className="dot" aria-hidden="true" />
-                            Simulación en vivo
-                          </span>
-                        ) : (
-                          <span className="preview-badge">{PREVIEW_LABEL}</span>
-                        )
+                    <Suspense
+                      fallback={
+                        <div className="viewer-skeleton" role="status" aria-label="cargando visor 3D…">
+                          <span className="visually-hidden">cargando visor 3D…</span>
+                        </div>
                       }
-                    />
+                    >
+                      <CellViewer
+                        key={viewerIsLive ? runs[activeArm as string].job.id : "preview"}
+                        data={viewerData}
+                        yMax={sharedYMax}
+                        autoRotate={!viewerIsLive}
+                        badge={
+                          viewerIsLive ? (
+                            <span className="live-badge">
+                              <span className="dot" aria-hidden="true" />
+                              Simulación en vivo
+                            </span>
+                          ) : (
+                            <span className="preview-badge">{PREVIEW_LABEL}</span>
+                          )
+                        }
+                      />
+                    </Suspense>
                   ) : previewError ? (
                     <p className="inline-error" role="alert">
                       Preview unavailable ({previewError}). Genera un plan para correr el motor.
@@ -590,7 +710,15 @@ export default function App() {
                               .map((s) => trajMaxCells(s.traj!)),
                           );
                           return sel.traj ? (
-                            <CellViewer key={sel.job.id} data={sel.traj} yMax={sweepMax} />
+                            <Suspense
+                              fallback={
+                                <div className="viewer-skeleton" role="status" aria-label="cargando visor 3D…">
+                                  <span className="visually-hidden">cargando visor 3D…</span>
+                                </div>
+                              }
+                            >
+                              <CellViewer key={sel.job.id} data={sel.traj} yMax={sweepMax} />
+                            </Suspense>
                           ) : (
                             <div className="viewer-skeleton" role="status" aria-label={`calculando dosis ${sel.dose}…`}>
                               <span className="visually-hidden">calculando dosis {sel.dose}…</span>
@@ -634,7 +762,7 @@ export default function App() {
         {view === "history" && (
           <section className="page-card" aria-label="mis experimentos">
             <h2>Mis experimentos</h2>
-            <p className="page-sub">Runs de esta sesión (el historial se reinicia al recargar).</p>
+            <p className="page-sub">Tus runs de este navegador (se conservan al recargar).</p>
             {historyRows.length === 0 ? (
               <p className="hint">
                 Aún no hay runs. <button type="button" className="link-btn" onClick={() => setView("experiment")}>Experimenta</button> para crear el primero.
@@ -659,9 +787,9 @@ export default function App() {
                         <td title={r.id}>{r.id.slice(0, 8)}</td>
                         <td>{r.label}</td>
                         <td>{r.job.state}</td>
-                        <td>{r.traj ? r.traj.summary.final_live : "—"}</td>
-                        <td>{r.traj ? r.traj.summary.final_dead : "—"}</td>
-                        <td>{r.traj ? `${r.traj.summary.final_radius_um.toFixed(0)} µm` : "—"}</td>
+                        <td>{r.job.summary ? r.job.summary.final_live : "—"}</td>
+                        <td>{r.job.summary ? r.job.summary.final_dead : "—"}</td>
+                        <td>{r.job.summary ? `${r.job.summary.final_radius_um.toFixed(0)} µm` : "—"}</td>
                         <td>
                           <button type="button" onClick={() => void doExport(r.id)}>
                             Exportar

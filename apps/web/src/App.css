@@ -692,6 +692,74 @@ textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   max-width: calc(100% - 120px);
 }
 
+.viewer-fallback {
+  position: absolute;
+  inset: 12px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  text-align: center;
+  background: rgba(233, 237, 251, 0.96);
+  border-radius: var(--r-card, 12px);
+  padding: 16px;
+  font-size: 14px;
+}
+
+.dose-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.dose-table th,
+.dose-table td {
+  text-align: right;
+  padding: 4px 8px;
+  border-top: 1px solid var(--line, #e2e6f5);
+  font-variant-numeric: tabular-nums;
+}
+
+.dose-table th:first-child,
+.dose-table td:first-child {
+  text-align: left;
+}
+
+.provenance {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.provenance summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.provenance dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 8px;
+  margin: 6px 0;
+}
+
+.provenance dt {
+  color: var(--muted);
+}
+
+.provenance dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  word-break: break-all;
+}
+
+.provenance-note {
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+
 .live-badge {
   display: inline-flex;
   align-items: center;
